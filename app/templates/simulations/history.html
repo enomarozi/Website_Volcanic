@@ -1,0 +1,213 @@
+{% extends "layouts/base.html" %}
+
+
+{% block title %}
+Simulation History
+{% endblock %}
+
+
+{% block content %}
+
+<div class="pt-4 pb-3 mb-4 border-bottom">
+
+    <h1 class="h2">
+        Simulation History
+    </h1>
+
+    <p class="text-muted mb-0">
+        Previous volcanic ash simulations.
+    </p>
+
+</div>
+
+
+<div class="card shadow-sm">
+
+    <div class="card-header bg-white">
+
+        <div class="d-flex justify-content-between align-items-center">
+
+            <h5 class="mb-0">
+                Simulation History
+            </h5>
+
+
+            <a
+                href="/simulation/create"
+                class="btn btn-primary btn-sm"
+            >
+                New Simulation
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <div class="table-responsive">
+
+        <table class="table table-hover align-middle mb-0">
+
+            <thead class="table-light">
+
+                <tr>
+
+                    <th>
+                        ID
+                    </th>
+
+                    <th>
+                        Volcano
+                    </th>
+
+                    <th>
+                        Date
+                    </th>
+
+                    <th>
+                        Duration
+                    </th>
+
+                    <th>
+                        Status
+                    </th>
+
+                    <th class="text-end">
+                        Action
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                <tr>
+
+                    <td>
+                        #001
+                    </td>
+
+                    <td>
+                        Mount Merapi
+                    </td>
+
+                    <td>
+                        13 August 2026
+                    </td>
+
+                    <td>
+                        24 Hours
+                    </td>
+
+                    <td>
+
+                        <span class="badge text-bg-success">
+                            Completed
+                        </span>
+
+                    </td>
+
+                    <td class="text-end">
+
+                        <a
+                            href="/simulation/result"
+                            class="btn btn-sm btn-outline-primary"
+                        >
+                            View
+                        </a>
+
+                    </td>
+
+                </tr>
+
+
+                <tr>
+
+                    <td>
+                        #002
+                    </td>
+
+                    <td>
+                        Mount Merapi
+                    </td>
+
+                    <td>
+                        12 August 2026
+                    </td>
+
+                    <td>
+                        48 Hours
+                    </td>
+
+                    <td>
+
+                        <span class="badge text-bg-success">
+                            Completed
+                        </span>
+
+                    </td>
+
+                    <td class="text-end">
+
+                        <a
+                            href="/simulation/result"
+                            class="btn btn-sm btn-outline-primary"
+                        >
+                            View
+                        </a>
+
+                    </td>
+
+                </tr>
+
+
+                <tr>
+
+                    <td>
+                        #003
+                    </td>
+
+                    <td>
+                        Mount Semeru
+                    </td>
+
+                    <td>
+                        12 August 2026
+                    </td>
+
+                    <td>
+                        24 Hours
+                    </td>
+
+                    <td>
+
+                        <span class="badge text-bg-primary">
+                            Processing
+                        </span>
+
+                    </td>
+
+                    <td class="text-end">
+
+                        <button
+                            class="btn btn-sm btn-outline-secondary"
+                            disabled
+                        >
+                            Processing
+                        </button>
+
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+{% endblock %}

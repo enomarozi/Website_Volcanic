@@ -1,0 +1,119 @@
+{% extends "layouts/base.html" %}
+
+
+{% block title %}
+Reports
+{% endblock %}
+
+
+{% block content %}
+
+<div class="pt-4 pb-3 mb-4 border-bottom">
+
+    <h1 class="h2">
+        Reports
+    </h1>
+
+    <p class="text-muted mb-0">
+        Volcanic ash analysis reports.
+    </p>
+
+</div>
+
+
+<div class="card shadow-sm">
+
+    <div class="card-header bg-white">
+
+        <h5 class="mb-0">
+            Analysis Reports
+        </h5>
+
+    </div>
+
+
+    <div class="table-responsive">
+
+        <table class="table table-hover align-middle mb-0">
+
+            <thead class="table-light">
+
+                <tr>
+
+                    <th>
+                        Report ID
+                    </th>
+
+                    <th>
+                        Volcano
+                    </th>
+
+                    <th>
+                        Simulation Date
+                    </th>
+
+                    <th>
+                        Status
+                    </th>
+
+                    <th class="text-end">
+                        Action
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                <tr>
+
+                    <td>
+                        R001
+                    </td>
+
+                    <td>
+                        Mount Merapi
+                    </td>
+
+                    <td>
+                        13 August 2026
+                    </td>
+
+                    <td>
+
+                        <span class="badge text-bg-success">
+                            Ready
+                        </span>
+
+                    </td>
+
+                    <td class="text-end">
+
+                        <a
+                            href="/simulation/result"
+                            class="btn btn-sm btn-outline-primary"
+                        >
+                            View
+                        </a>
+
+                        <button
+                            class="btn btn-sm btn-outline-danger"
+                        >
+                            PDF
+                        </button>
+
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+{% endblock %}

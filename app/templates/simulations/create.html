@@ -1,0 +1,450 @@
+{% extends "layouts/base.html" %}
+
+
+{% block title %}
+New Simulation | Volcanic Ash Analysis
+{% endblock %}
+
+
+{% block content %}
+
+<div class="pt-4 pb-3 mb-4 border-bottom">
+
+    <h1 class="h2">
+        New Simulation
+    </h1>
+
+    <p class="text-muted mb-0">
+        Configure a volcanic ash dispersion simulation.
+    </p>
+
+</div>
+
+
+<form>
+
+
+    <!-- ==================================
+         VOLCANO / SOURCE
+    =================================== -->
+
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header bg-white">
+
+            <h5 class="mb-1">
+                Volcano / Source
+            </h5>
+
+            <small class="text-muted">
+                Define the initial volcanic source location.
+            </small>
+
+        </div>
+
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+
+                <div class="col-md-6">
+
+                    <label
+                        for="volcano_name"
+                        class="form-label"
+                    >
+                        Volcano Name
+                    </label>
+
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="volcano_name"
+                        name="volcano_name"
+                        placeholder="Example: Mount Merapi"
+                    >
+
+                </div>
+
+
+                <div class="col-md-3">
+
+                    <label
+                        for="latitude"
+                        class="form-label"
+                    >
+                        Latitude
+                    </label>
+
+                    <input
+                        type="number"
+                        step="any"
+                        class="form-control"
+                        id="latitude"
+                        name="latitude"
+                        placeholder="-7.54"
+                    >
+
+                </div>
+
+
+                <div class="col-md-3">
+
+                    <label
+                        for="longitude"
+                        class="form-label"
+                    >
+                        Longitude
+                    </label>
+
+                    <input
+                        type="number"
+                        step="any"
+                        class="form-control"
+                        id="longitude"
+                        name="longitude"
+                        placeholder="110.44"
+                    >
+
+                </div>
+
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- ==================================
+         SIMULATION TIME
+    =================================== -->
+
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header bg-white">
+
+            <h5 class="mb-1">
+                Simulation Time
+            </h5>
+
+            <small class="text-muted">
+                Define the simulation period.
+            </small>
+
+        </div>
+
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+
+                <div class="col-md-4">
+
+                    <label
+                        for="start_date"
+                        class="form-label"
+                    >
+                        Start Date
+                    </label>
+
+                    <input
+                        type="date"
+                        class="form-control"
+                        id="start_date"
+                        name="start_date"
+                    >
+
+                </div>
+
+
+                <div class="col-md-4">
+
+                    <label
+                        for="start_time"
+                        class="form-label"
+                    >
+                        Start Time
+                    </label>
+
+                    <input
+                        type="time"
+                        class="form-control"
+                        id="start_time"
+                        name="start_time"
+                    >
+
+                </div>
+
+
+                <div class="col-md-4">
+
+                    <label
+                        for="duration"
+                        class="form-label"
+                    >
+                        Duration
+                    </label>
+
+                    <select
+                        class="form-select"
+                        id="duration"
+                        name="duration"
+                    >
+
+                        <option value="">
+                            Select duration
+                        </option>
+
+                        <option value="6">
+                            6 Hours
+                        </option>
+
+                        <option value="12">
+                            12 Hours
+                        </option>
+
+                        <option value="24">
+                            24 Hours
+                        </option>
+
+                        <option value="48">
+                            48 Hours
+                        </option>
+
+                        <option value="72">
+                            72 Hours
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- ==================================
+         PARTICLE
+    =================================== -->
+
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header bg-white">
+
+            <h5 class="mb-1">
+                Particle Configuration
+            </h5>
+
+            <small class="text-muted">
+                Define particle simulation parameters.
+            </small>
+
+        </div>
+
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+
+                <div class="col-md-6">
+
+                    <label
+                        for="altitude"
+                        class="form-label"
+                    >
+                        Initial Altitude
+                    </label>
+
+                    <div class="input-group">
+
+                        <input
+                            type="number"
+                            step="any"
+                            class="form-control"
+                            id="altitude"
+                            name="altitude"
+                            placeholder="5000"
+                        >
+
+                        <span class="input-group-text">
+                            m
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-6">
+
+                    <label
+                        for="particle_count"
+                        class="form-label"
+                    >
+                        Number of Particles
+                    </label>
+
+                    <input
+                        type="number"
+                        class="form-control"
+                        id="particle_count"
+                        name="particle_count"
+                        value="100"
+                    >
+
+                </div>
+
+
+                <div class="col-md-6">
+
+                    <label
+                        for="particle_diameter"
+                        class="form-label"
+                    >
+                        Particle Diameter
+                    </label>
+
+                    <div class="input-group">
+
+                        <input
+                            type="number"
+                            step="any"
+                            class="form-control"
+                            id="particle_diameter"
+                            name="particle_diameter"
+                            placeholder="100"
+                        >
+
+                        <span class="input-group-text">
+                            µm
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- ==================================
+         METEOROLOGICAL DATA
+    =================================== -->
+
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header bg-white">
+
+            <h5 class="mb-1">
+                Meteorological Data
+            </h5>
+
+            <small class="text-muted">
+                Select the atmospheric data used for simulation.
+            </small>
+
+        </div>
+
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+
+                <div class="col-md-6">
+
+                    <label
+                        for="dataset"
+                        class="form-label"
+                    >
+                        Dataset
+                    </label>
+
+                    <select
+                        class="form-select"
+                        id="dataset"
+                        name="dataset"
+                    >
+
+                        <option value="">
+                            Select dataset
+                        </option>
+
+                        <option value="era5">
+                            ERA5
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="col-md-6">
+
+                    <label
+                        for="data_file"
+                        class="form-label"
+                    >
+                        Meteorological Data File
+                    </label>
+
+                    <input
+                        type="file"
+                        class="form-control"
+                        id="data_file"
+                        name="data_file"
+                    >
+
+                </div>
+
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- ==================================
+         ACTION
+    =================================== -->
+
+    <div class="d-flex justify-content-end gap-2 mb-5">
+
+        <a
+            href="/"
+            class="btn btn-outline-secondary"
+        >
+            Cancel
+        </a>
+
+
+        <button
+            type="submit"
+            class="btn btn-primary"
+        >
+            Run Simulation
+        </button>
+
+    </div>
+
+
+</form>
+
+{% endblock %}

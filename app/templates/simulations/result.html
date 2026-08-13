@@ -1,0 +1,256 @@
+{% extends "layouts/base.html" %}
+
+
+{% block title %}
+Simulation Result
+{% endblock %}
+
+
+{% block content %}
+
+<div class="pt-4 pb-3 mb-4 border-bottom">
+
+    <div class="d-flex justify-content-between align-items-center">
+
+        <div>
+
+            <h1 class="h2">
+                Simulation Result
+            </h1>
+
+            <p class="text-muted mb-0">
+                Volcanic ash dispersion analysis result.
+            </p>
+
+        </div>
+
+
+        <a
+            href="/reports"
+            class="btn btn-outline-primary"
+        >
+            Generate Report
+        </a>
+
+    </div>
+
+</div>
+
+
+<!-- Simulation Information -->
+
+<div class="card shadow-sm mb-4">
+
+    <div class="card-header bg-white">
+
+        <h5 class="mb-0">
+            Simulation Information
+        </h5>
+
+    </div>
+
+
+    <div class="card-body">
+
+        <div class="row">
+
+            <div class="col-md-3">
+
+                <small class="text-muted">
+                    Volcano
+                </small>
+
+                <div class="fw-semibold">
+                    Mount Merapi
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <small class="text-muted">
+                    Start
+                </small>
+
+                <div class="fw-semibold">
+                    13 August 2026 00:00
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <small class="text-muted">
+                    Duration
+                </small>
+
+                <div class="fw-semibold">
+                    24 Hours
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <small class="text-muted">
+                    Status
+                </small>
+
+                <div>
+
+                    <span class="badge text-bg-success">
+                        Completed
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- Map -->
+
+<div class="card shadow-sm mb-4">
+
+    <div class="card-header bg-white">
+
+        <h5 class="mb-0">
+            Dispersion Map
+        </h5>
+
+    </div>
+
+
+    <div class="card-body">
+
+        <div
+            class="bg-secondary-subtle rounded d-flex align-items-center justify-content-center"
+            style="height: 450px;"
+        >
+
+            <div class="text-center text-muted">
+
+                <h5>
+                    Map Visualization
+                </h5>
+
+                <p class="mb-0">
+                    Dispersion map will be displayed here.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- Analysis -->
+
+<div class="row g-4 mb-4">
+
+
+    <div class="col-lg-6">
+
+        <div class="card shadow-sm h-100">
+
+            <div class="card-header bg-white">
+
+                <h5 class="mb-0">
+                    Wind Analysis
+                </h5>
+
+            </div>
+
+
+            <div class="card-body">
+
+                <div
+                    class="bg-light rounded d-flex align-items-center justify-content-center"
+                    style="height: 300px;"
+                >
+
+                    <span class="text-muted">
+                        Wind graph
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="col-lg-6">
+
+        <div class="card shadow-sm h-100">
+
+            <div class="card-header bg-white">
+
+                <h5 class="mb-0">
+                    Particle Trajectory
+                </h5>
+
+            </div>
+
+
+            <div class="card-body">
+
+                <div
+                    class="bg-light rounded d-flex align-items-center justify-content-center"
+                    style="height: 300px;"
+                >
+
+                    <span class="text-muted">
+                        Trajectory graph
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- Summary -->
+
+<div class="card shadow-sm mb-5">
+
+    <div class="card-header bg-white">
+
+        <h5 class="mb-0">
+            Analysis Summary
+        </h5>
+
+    </div>
+
+
+    <div class="card-body">
+
+        <p class="text-muted mb-0">
+            Analysis summary will be generated after the
+            simulation engine is implemented.
+        </p>
+
+    </div>
+
+</div>
+
+
+{% endblock %}
