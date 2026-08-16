@@ -1,32 +1,39 @@
+import json
+
+
 class GeoJSONService:
 
-    def trajectories_to_geojson(self, trajectories):
+    def trajectory_to_feature_collection(
+        self,
+        simulation
+    ):
         features = []
 
-        grouped = {}
+        for particle in simulation["trajectories"]:
+            trajectory = particle["trajectory"]
 
-        for point in trajectories:
-            particle_id = point["particle_id"]
-
-            if particle_id not in grouped:
-                grouped[particle_id] = []
-
-            grouped[particle_id].append(point)
-
-        for particle_id, points in grouped.items():
             coordinates = []
 
-            for point in points:
+            for point in trajectory:
                 coordinates.append([
                     point["longitude"],
                     point["latitude"],
                     point["altitude"]
                 ])
 
+            if len(coordinates) < 2:
+                continue
+
             features.append({
                 "type": "Feature",
                 "properties": {
-                    "particle_id": particle_id
+                    "particle_id": particle["particle_id"],
+                    "class": particle["class"],
+                    "radius": particle["radius"],
+                    "mass": particle["mass"],
+                    "settling_velocity": particle[
+                        "settling_velocity"
+                    ]
                 },
                 "geometry": {
                     "type": "LineString",
@@ -38,3 +45,61 @@ class GeoJSONService:
             "type": "FeatureCollection",
             "features": features
         }
+
+    def trajectory_points_to_feature_collection(
+        self,
+        simulation
+    ):
+        features = []
+
+        for particle in simulation["trajectories"]:
+            for point in particle["trajectory"]:
+                features.append({
+                    "type": "Feature",
+                    "properties": {
+                        "particle_id": particle[
+                            "particle_id"
+                        ],
+                        "class": particle["class"],
+                        "radius": particle["radius"],
+                        "mass": particle["mass"],
+                        "settling_velocity": particle[
+                            "settling_velocity"
+                        ],
+                        "step": point["step"],
+                        "time": point["time"],
+                        "time_index": point[
+                            "time_index"
+                        ],
+                        "altitude": point[
+                            "altitude"
+                        ],
+                        "u": point["u"],
+                        "v": point["v"],
+                        "vertical": point[
+                            "vertical"
+                        ]
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [
+                            point["longitude"],
+                            point["latitude"],
+                            point["altitude"]
+                        ]
+                    }
+                })
+
+        return {
+            "type": "FeatureCollection",
+            "features": features
+        }
+
+    def to_json(
+        self,
+        geojson
+    ):
+        return json.dumps(
+            geojson,
+            ensure_ascii=False
+        )

@@ -28,8 +28,8 @@ class ParticleSimulationService:
         )
 
         return {
-            "u": wind["u"],
-            "v": wind["v"],
+            "u": float(wind["u"]),
+            "v": float(wind["v"]),
             "vertical": 0.0
         }
 
@@ -42,6 +42,11 @@ class ParticleSimulationService:
         time_index=0,
         settling_velocity=0.0
     ):
+        if dt <= 0:
+            raise ValueError(
+                "Time step must be greater than zero."
+            )
+
         velocity = self.velocity(
             latitude=latitude,
             longitude=longitude,
@@ -51,7 +56,11 @@ class ParticleSimulationService:
 
         earth_radius = 6371000.0
 
-        d_lat = (
+        latitude_radians = math.radians(
+            latitude
+        )
+
+        delta_latitude = (
             velocity["v"]
             * dt
             / earth_radius
@@ -62,13 +71,13 @@ class ParticleSimulationService:
         cos_latitude = max(
             abs(
                 math.cos(
-                    math.radians(latitude)
+                    latitude_radians
                 )
             ),
             1e-8
         )
 
-        d_lon = (
+        delta_longitude = (
             velocity["u"]
             * dt
             / (
@@ -78,6 +87,26 @@ class ParticleSimulationService:
         ) * (
             180.0 / math.pi
         )
+
+        settling_velocity = max(
+            float(settling_velocity),
+            0.0
+        )
+
+        new_latitude = (
+            latitude
+            + delta_latitude
+        )
+
+        new_longitude = (
+            longitude
+            + delta_longitude
+        )
+
+        new_longitude = (
+            (new_longitude + 180.0)
+            % 360.0
+        ) - 180.0
 
         new_altitude = (
             altitude
@@ -90,8 +119,8 @@ class ParticleSimulationService:
         )
 
         return {
-            "latitude": latitude + d_lat,
-            "longitude": longitude + d_lon,
+            "latitude": new_latitude,
+            "longitude": new_longitude,
             "altitude": new_altitude,
             "u": velocity["u"],
             "v": velocity["v"],

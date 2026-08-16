@@ -6,7 +6,6 @@
 
 <div class="container-fluid py-4">
 
-    <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
 
         <h4 class="mb-0">
@@ -20,7 +19,6 @@
     </div>
 
 
-    <!-- Simulation Parameters -->
     <div class="card shadow-sm mb-4">
 
         <div class="card-header">
@@ -32,31 +30,37 @@
             <dl class="row mb-0">
 
                 <dt class="col-sm-4">Latitude</dt>
+
                 <dd class="col-sm-8">
                     {{ simulation.latitude }}
                 </dd>
 
                 <dt class="col-sm-4">Longitude</dt>
+
                 <dd class="col-sm-8">
                     {{ simulation.longitude }}
                 </dd>
 
                 <dt class="col-sm-4">Release Altitude</dt>
+
                 <dd class="col-sm-8">
                     {{ "%.2f"|format(simulation.altitude) }} m
                 </dd>
 
                 <dt class="col-sm-4">Duration</dt>
+
                 <dd class="col-sm-8">
                     {{ simulation.duration }} seconds
                 </dd>
 
                 <dt class="col-sm-4">Time Step (Δt)</dt>
+
                 <dd class="col-sm-8">
                     {{ simulation.dt }} seconds
                 </dd>
 
                 <dt class="col-sm-4">Time Index</dt>
+
                 <dd class="col-sm-8">
                     {{ simulation.time_index }}
                 </dd>
@@ -67,7 +71,6 @@
     </div>
 
 
-    <!-- ERA5 Grid -->
     <div class="card shadow-sm mb-4">
 
         <div class="card-header">
@@ -116,7 +119,6 @@
     </div>
 
 
-    <!-- Simulation Summary -->
     <div class="card shadow-sm mb-4">
 
         <div class="card-header">
@@ -200,7 +202,104 @@
     </div>
 
 
-    <!-- Atmospheric Profile -->
+    <!-- Dispersion Map -->
+
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header d-flex justify-content-between align-items-center">
+
+            <strong>
+                Volcanic Ash Dispersion Map
+            </strong>
+
+            <span class="badge text-bg-secondary">
+                3D
+            </span>
+
+        </div>
+
+        <div class="card-body p-0">
+
+            <div
+                id="dispersion-map"
+                style="
+                    width: 100%;
+                    height: 700px;
+                "
+            ></div>
+
+        </div>
+
+    </div>
+
+
+    <!-- Map Information -->
+
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header">
+            <strong>Map Information</strong>
+        </div>
+
+        <div class="card-body">
+
+            <div class="row">
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Initial Latitude
+                        </div>
+
+                        <div class="fw-bold">
+                            {{ simulation.latitude }}
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Initial Longitude
+                        </div>
+
+                        <div class="fw-bold">
+                            {{ simulation.longitude }}
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Release Altitude
+                        </div>
+
+                        <div class="fw-bold">
+                            {{ "%.2f"|format(simulation.altitude) }} m
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
     <div class="card shadow-sm mb-4">
 
         <div class="card-header">
@@ -254,11 +353,15 @@
                             </td>
 
                             <td>
-                                {{ "%.2f"|format(level.potential_temperature) }} K
+                                {{ "%.2f"|format(
+                                    level.potential_temperature
+                                ) }} K
                             </td>
 
                             <td>
-                                {{ "%.5f"|format(level.brunt_vaisala) }} s⁻¹
+                                {{ "%.5f"|format(
+                                    level.brunt_vaisala
+                                ) }} s⁻¹
                             </td>
 
                         </tr>
@@ -272,10 +375,10 @@
             </div>
 
         </div>
+
     </div>
 
 
-    <!-- Particle Distribution -->
     <div class="card shadow-sm mb-4">
 
         <div class="card-header">
@@ -362,7 +465,6 @@
     </div>
 
 
-    <!-- Particle Trajectory -->
     <div class="card shadow-sm mb-4">
 
         <div class="card-header">
@@ -382,11 +484,15 @@
                     </strong>
 
                     <span class="text-muted">
+
                         {{ particle.class }}
+
                         —
+
                         {{ "%.8f"|format(
                             particle.settling_velocity
                         ) }} m/s
+
                     </span>
 
                 </div>
@@ -481,7 +587,7 @@
 
     </div>
 
-    <!-- Eruption Source -->
+
     <div class="card shadow-sm mb-4">
 
         <div class="card-header">
@@ -513,7 +619,9 @@
                 </dt>
 
                 <dd class="col-sm-6">
-                    {{ "%.4f"|format(simulation.eruption.mean_wind_speed) }} m/s
+                    {{ "%.4f"|format(
+                        simulation.eruption.mean_wind_speed
+                    ) }} m/s
                 </dd>
 
                 <dt class="col-sm-6">
@@ -521,7 +629,9 @@
                 </dt>
 
                 <dd class="col-sm-6">
-                    {{ "%.4f"|format(simulation.eruption.theta_mean) }} K
+                    {{ "%.4f"|format(
+                        simulation.eruption.theta_mean
+                    ) }} K
                 </dd>
 
                 <dt class="col-sm-6">
@@ -529,7 +639,9 @@
                 </dt>
 
                 <dd class="col-sm-6">
-                    {{ "%.6e"|format(simulation.eruption.dtheta_dz) }} K/m
+                    {{ "%.6e"|format(
+                        simulation.eruption.dtheta_dz
+                    ) }} K/m
                 </dd>
 
                 <dt class="col-sm-6">
@@ -537,7 +649,9 @@
                 </dt>
 
                 <dd class="col-sm-6">
-                    {{ "%.6e"|format(simulation.eruption.brunt_vaisala) }} s⁻¹
+                    {{ "%.6e"|format(
+                        simulation.eruption.brunt_vaisala
+                    ) }} s⁻¹
                 </dd>
 
                 <dt class="col-sm-6">
@@ -545,7 +659,9 @@
                 </dt>
 
                 <dd class="col-sm-6">
-                    {{ "%.6e"|format(simulation.eruption.mer) }} kg/s
+                    {{ "%.6e"|format(
+                        simulation.eruption.mer
+                    ) }} kg/s
                 </dd>
 
                 <dt class="col-sm-6">
@@ -553,14 +669,322 @@
                 </dt>
 
                 <dd class="col-sm-6">
-                    {{ "%.6e"|format(simulation.eruption.total_mass) }} kg
+                    {{ "%.6e"|format(
+                        simulation.eruption.total_mass
+                    ) }} kg
                 </dd>
 
             </dl>
 
         </div>
+
     </div>
 
 </div>
+
+
+<link
+    rel="stylesheet"
+    href="https://js.arcgis.com/4.34/esri/themes/light/main.css"
+>
+
+<script src="https://js.arcgis.com/4.34/"></script>
+
+<script>
+
+require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/Graphic",
+    "esri/layers/GraphicsLayer",
+    "esri/geometry/Polyline",
+    "esri/geometry/Point"
+], function (
+    Map,
+    MapView,
+    Graphic,
+    GraphicsLayer,
+    Polyline,
+    Point
+) {
+
+    const map = new Map({
+        basemap: "topo-vector"
+    });
+
+    const view = new MapView({
+        container: "dispersion-map",
+        map: map,
+        center: [
+            {{ simulation.longitude }},
+            {{ simulation.latitude }}
+        ],
+        zoom: 8
+    });
+
+    const trajectoryLayer = new GraphicsLayer({
+        title: "Particle Trajectories"
+    });
+
+    const particleLayer = new GraphicsLayer({
+        title: "Particle Positions"
+    });
+
+    map.add(trajectoryLayer);
+    map.add(particleLayer);
+
+    const trajectories =
+        {{ simulation.trajectories | tojson }};
+
+
+    trajectories.forEach(function (particle) {
+
+        const coordinates = [];
+
+        particle.trajectory.forEach(function (point) {
+
+            coordinates.push([
+                point.longitude,
+                point.latitude
+            ]);
+
+        });
+
+        if (coordinates.length < 2) {
+            return;
+        }
+
+        const polyline = new Polyline({
+            paths: [
+                coordinates
+            ],
+            spatialReference: {
+                wkid: 4326
+            }
+        });
+
+        const graphic = new Graphic({
+            geometry: polyline,
+
+            attributes: {
+                particle_id:
+                    particle.particle_id,
+
+                particle_class:
+                    particle.class,
+
+                radius:
+                    particle.radius,
+
+                mass:
+                    particle.mass,
+
+                settling_velocity:
+                    particle.settling_velocity
+            },
+
+            symbol: {
+                type: "simple-line",
+                color: [
+                    255,
+                    80,
+                    0
+                ],
+                width: 2
+            },
+
+            popupTemplate: {
+                title:
+                    "Particle {particle_id}",
+
+                content: [
+                    {
+                        type: "fields",
+
+                        fieldInfos: [
+                            {
+                                fieldName:
+                                    "particle_id",
+
+                                label:
+                                    "Particle ID"
+                            },
+
+                            {
+                                fieldName:
+                                    "particle_class",
+
+                                label:
+                                    "Class"
+                            },
+
+                            {
+                                fieldName:
+                                    "radius",
+
+                                label:
+                                    "Radius"
+                            },
+
+                            {
+                                fieldName:
+                                    "mass",
+
+                                label:
+                                    "Mass"
+                            },
+
+                            {
+                                fieldName:
+                                    "settling_velocity",
+
+                                label:
+                                    "Settling Velocity"
+                            }
+                        ]
+                    }
+                ]
+            }
+        });
+
+        trajectoryLayer.add(
+            graphic
+        );
+
+    });
+
+
+    trajectories.forEach(function (particle) {
+
+        if (
+            !particle.trajectory ||
+            particle.trajectory.length === 0
+        ) {
+            return;
+        }
+
+        const firstPoint =
+            particle.trajectory[0];
+
+        const point = new Point({
+            longitude:
+                firstPoint.longitude,
+
+            latitude:
+                firstPoint.latitude,
+
+            spatialReference: {
+                wkid: 4326
+            }
+        });
+
+        const graphic = new Graphic({
+            geometry: point,
+
+            attributes: {
+                particle_id:
+                    particle.particle_id,
+
+                particle_class:
+                    particle.class,
+
+                altitude:
+                    firstPoint.altitude,
+
+                time:
+                    firstPoint.time
+            },
+
+            symbol: {
+                type: "simple-marker",
+
+                size: 8,
+
+                color: [
+                    255,
+                    140,
+                    0
+                ],
+
+                outline: {
+                    color: [
+                        255,
+                        255,
+                        255
+                    ],
+                    width: 1
+                }
+            },
+
+            popupTemplate: {
+                title:
+                    "Particle {particle_id}",
+
+                content: [
+                    {
+                        type: "fields",
+
+                        fieldInfos: [
+                            {
+                                fieldName:
+                                    "particle_id",
+
+                                label:
+                                    "Particle ID"
+                            },
+
+                            {
+                                fieldName:
+                                    "particle_class",
+
+                                label:
+                                    "Class"
+                            },
+
+                            {
+                                fieldName:
+                                    "altitude",
+
+                                label:
+                                    "Altitude"
+                            },
+
+                            {
+                                fieldName:
+                                    "time",
+
+                                label:
+                                    "Simulation Time"
+                            }
+                        ]
+                    }
+                ]
+            }
+        });
+
+        particleLayer.add(
+            graphic
+        );
+
+    });
+
+
+    view.when(function () {
+
+        if (
+            trajectoryLayer.graphics.length > 0
+        ) {
+
+            view.goTo(
+                trajectoryLayer.graphics.toArray()
+            );
+
+        }
+
+    });
+
+});
+
+</script>
 
 {% endblock %}
