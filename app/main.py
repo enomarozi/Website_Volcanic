@@ -8,11 +8,5 @@ app = FastAPI(
     version="0.1.0"
 )
 
-app.mount(
-    "/static",
-    StaticFiles(directory="app/static"),
-    name="static",
-)
-
 app.include_router(pages_router)
 

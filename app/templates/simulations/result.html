@@ -1,111 +1,359 @@
 {% extends "layouts/base.html" %}
 
-
-{% block title %}
-Simulation Result
-{% endblock %}
-
+{% block title %}Simulation Result{% endblock %}
 
 {% block content %}
 
-<div class="pt-4 pb-3 mb-4 border-bottom">
+<div class="container-fluid py-4">
 
-    <div class="d-flex justify-content-between align-items-center">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
 
-        <div>
+        <h4 class="mb-0">
+            Simulation Result
+        </h4>
 
-            <h1 class="h2">
-                Simulation Result
-            </h1>
-
-            <p class="text-muted mb-0">
-                Volcanic ash dispersion analysis result.
-            </p>
-
-        </div>
-
-
-        <a
-            href="/reports"
-            class="btn btn-outline-primary"
-        >
-            Generate Report
+        <a href="/simulations/create" class="btn btn-primary">
+            New Simulation
         </a>
 
     </div>
 
-</div>
 
+    <!-- Simulation Parameters -->
+    <div class="card shadow-sm mb-4">
 
-<!-- Simulation Information -->
+        <div class="card-header">
+            <strong>Simulation Parameters</strong>
+        </div>
 
-<div class="card shadow-sm mb-4">
+        <div class="card-body">
 
-    <div class="card-header bg-white">
+            <dl class="row mb-0">
 
-        <h5 class="mb-0">
-            Simulation Information
-        </h5>
+                <dt class="col-sm-4">Latitude</dt>
+                <dd class="col-sm-8">
+                    {{ simulation.latitude }}
+                </dd>
 
+                <dt class="col-sm-4">Longitude</dt>
+                <dd class="col-sm-8">
+                    {{ simulation.longitude }}
+                </dd>
+
+                <dt class="col-sm-4">Release Altitude</dt>
+                <dd class="col-sm-8">
+                    {{ "%.2f"|format(simulation.altitude) }} m
+                </dd>
+
+                <dt class="col-sm-4">Duration</dt>
+                <dd class="col-sm-8">
+                    {{ simulation.duration }} seconds
+                </dd>
+
+                <dt class="col-sm-4">Time Step (Δt)</dt>
+                <dd class="col-sm-8">
+                    {{ simulation.dt }} seconds
+                </dd>
+
+                <dt class="col-sm-4">Time Index</dt>
+                <dd class="col-sm-8">
+                    {{ simulation.time_index }}
+                </dd>
+
+            </dl>
+
+        </div>
     </div>
 
 
-    <div class="card-body">
+    <!-- ERA5 Grid -->
+    <div class="card shadow-sm mb-4">
 
-        <div class="row">
+        <div class="card-header">
+            <strong>Nearest ERA5 Grid</strong>
+        </div>
 
-            <div class="col-md-3">
+        <div class="card-body">
 
-                <small class="text-muted">
-                    Volcano
-                </small>
+            <dl class="row mb-0">
 
-                <div class="fw-semibold">
-                    Mount Merapi
+                <dt class="col-sm-4">
+                    Requested Latitude
+                </dt>
+
+                <dd class="col-sm-8">
+                    {{ simulation.latitude }}
+                </dd>
+
+                <dt class="col-sm-4">
+                    Requested Longitude
+                </dt>
+
+                <dd class="col-sm-8">
+                    {{ simulation.longitude }}
+                </dd>
+
+                <dt class="col-sm-4">
+                    Grid Latitude
+                </dt>
+
+                <dd class="col-sm-8">
+                    {{ simulation.grid.latitude }}
+                </dd>
+
+                <dt class="col-sm-4">
+                    Grid Longitude
+                </dt>
+
+                <dd class="col-sm-8">
+                    {{ simulation.grid.longitude }}
+                </dd>
+
+            </dl>
+
+        </div>
+    </div>
+
+
+    <!-- Simulation Summary -->
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header">
+            <strong>Simulation Summary</strong>
+        </div>
+
+        <div class="card-body">
+
+            <div class="row text-center g-3">
+
+                <div class="col-md-3">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Particle Groups
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+                            {{ "{:,}".format(simulation.particle_count) }}
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-3">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Virtual Particles
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+                            {{ "{:,}".format(simulation.total_particles) }}
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-3">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Duration
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+                            {{ simulation.duration }} s
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-3">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Time Step
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+                            {{ simulation.dt }} s
+                        </div>
+
+                    </div>
+
                 </div>
 
             </div>
 
+        </div>
+    </div>
 
-            <div class="col-md-3">
 
-                <small class="text-muted">
-                    Start
-                </small>
+    <!-- Atmospheric Profile -->
+    <div class="card shadow-sm mb-4">
 
-                <div class="fw-semibold">
-                    13 August 2026 00:00
-                </div>
+        <div class="card-header">
+            <strong>Atmospheric Profile</strong>
+        </div>
+
+        <div class="card-body p-0">
+
+            <div class="table-responsive">
+
+                <table class="table table-striped table-hover mb-0">
+
+                    <thead>
+
+                        <tr>
+                            <th>Pressure</th>
+                            <th>Altitude</th>
+                            <th>U</th>
+                            <th>V</th>
+                            <th>Temperature</th>
+                            <th>Potential Temperature</th>
+                            <th>Brunt-Väisälä</th>
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        {% for level in simulation.atmospheric.profile %}
+
+                        <tr>
+
+                            <td>
+                                {{ level.pressure_level }} hPa
+                            </td>
+
+                            <td>
+                                {{ "%.2f"|format(level.altitude) }} m
+                            </td>
+
+                            <td>
+                                {{ "%.2f"|format(level.u) }} m/s
+                            </td>
+
+                            <td>
+                                {{ "%.2f"|format(level.v) }} m/s
+                            </td>
+
+                            <td>
+                                {{ "%.2f"|format(level.temperature) }} K
+                            </td>
+
+                            <td>
+                                {{ "%.2f"|format(level.potential_temperature) }} K
+                            </td>
+
+                            <td>
+                                {{ "%.5f"|format(level.brunt_vaisala) }} s⁻¹
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
 
             </div>
 
-
-            <div class="col-md-3">
-
-                <small class="text-muted">
-                    Duration
-                </small>
-
-                <div class="fw-semibold">
-                    24 Hours
-                </div>
-
-            </div>
+        </div>
+    </div>
 
 
-            <div class="col-md-3">
+    <!-- Particle Distribution -->
+    <div class="card shadow-sm mb-4">
 
-                <small class="text-muted">
-                    Status
-                </small>
+        <div class="card-header">
+            <strong>Virtual Particle Distribution</strong>
+        </div>
 
-                <div>
+        <div class="card-body">
 
-                    <span class="badge text-bg-success">
-                        Completed
-                    </span>
+            <p>
+                Total Virtual Particles:
+                <strong>
+                    {{ "{:,}".format(simulation.particles.total) }}
+                </strong>
+            </p>
 
-                </div>
+            <div class="table-responsive">
+
+                <table class="table table-bordered table-hover">
+
+                    <thead class="table-light">
+
+                        <tr>
+                            <th>Class</th>
+                            <th>Radius</th>
+                            <th>Mass</th>
+                            <th>Settling Velocity</th>
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        {% for particle in simulation.particles.groups %}
+
+                        <tr>
+
+                            <td>
+                                {{ particle.class }}
+                            </td>
+
+                            <td>
+                                {{ "%.2f"|format(
+                                    particle.radius * 1000000
+                                ) }} µm
+                            </td>
+
+                            <td>
+                                {{ "%.6e"|format(
+                                    particle.mass
+                                ) }} kg
+                            </td>
+
+                            <td>
+                                {{ "%.8f"|format(
+                                    particle.settling_velocity
+                                ) }} m/s
+                            </td>
+
+                        </tr>
+
+                        {% else %}
+
+                        <tr>
+
+                            <td
+                                colspan="4"
+                                class="text-center text-muted"
+                            >
+                                No particle data available.
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
 
             </div>
 
@@ -113,144 +361,206 @@ Simulation Result
 
     </div>
 
-</div>
 
+    <!-- Particle Trajectory -->
+    <div class="card shadow-sm mb-4">
 
-<!-- Map -->
-
-<div class="card shadow-sm mb-4">
-
-    <div class="card-header bg-white">
-
-        <h5 class="mb-0">
-            Dispersion Map
-        </h5>
-
-    </div>
-
-
-    <div class="card-body">
-
-        <div
-            class="bg-secondary-subtle rounded d-flex align-items-center justify-content-center"
-            style="height: 450px;"
-        >
-
-            <div class="text-center text-muted">
-
-                <h5>
-                    Map Visualization
-                </h5>
-
-                <p class="mb-0">
-                    Dispersion map will be displayed here.
-                </p>
-
-            </div>
-
+        <div class="card-header">
+            <strong>Particle Trajectory</strong>
         </div>
 
-    </div>
+        <div class="card-body">
 
-</div>
+            {% for particle in simulation.trajectories %}
 
+            <div class="mb-4">
 
-<!-- Analysis -->
+                <div class="d-flex justify-content-between align-items-center mb-2">
 
-<div class="row g-4 mb-4">
-
-
-    <div class="col-lg-6">
-
-        <div class="card shadow-sm h-100">
-
-            <div class="card-header bg-white">
-
-                <h5 class="mb-0">
-                    Wind Analysis
-                </h5>
-
-            </div>
-
-
-            <div class="card-body">
-
-                <div
-                    class="bg-light rounded d-flex align-items-center justify-content-center"
-                    style="height: 300px;"
-                >
+                    <strong>
+                        Particle {{ particle.particle_id }}
+                    </strong>
 
                     <span class="text-muted">
-                        Wind graph
+                        {{ particle.class }}
+                        —
+                        {{ "%.8f"|format(
+                            particle.settling_velocity
+                        ) }} m/s
                     </span>
+
+                </div>
+
+
+                <div class="table-responsive">
+
+                    <table class="table table-sm table-striped table-hover">
+
+                        <thead>
+
+                            <tr>
+                                <th>Time</th>
+                                <th>Latitude</th>
+                                <th>Longitude</th>
+                                <th>Altitude</th>
+                                <th>U</th>
+                                <th>V</th>
+                                <th>Vertical</th>
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody>
+
+                            {% for point in particle.trajectory %}
+
+                            <tr>
+
+                                <td>
+                                    {{ point.time }} s
+                                </td>
+
+                                <td>
+                                    {{ "%.6f"|format(
+                                        point.latitude
+                                    ) }}
+                                </td>
+
+                                <td>
+                                    {{ "%.6f"|format(
+                                        point.longitude
+                                    ) }}
+                                </td>
+
+                                <td>
+                                    {{ "%.2f"|format(
+                                        point.altitude
+                                    ) }} m
+                                </td>
+
+                                <td>
+                                    {{ "%.2f"|format(
+                                        point.u
+                                    ) }} m/s
+                                </td>
+
+                                <td>
+                                    {{ "%.2f"|format(
+                                        point.v
+                                    ) }} m/s
+                                </td>
+
+                                <td>
+                                    {{ "%.4f"|format(
+                                        point.vertical
+                                    ) }} m/s
+                                </td>
+
+                            </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
 
                 </div>
 
             </div>
 
-        </div>
+            {% else %}
 
-    </div>
-
-
-    <div class="col-lg-6">
-
-        <div class="card shadow-sm h-100">
-
-            <div class="card-header bg-white">
-
-                <h5 class="mb-0">
-                    Particle Trajectory
-                </h5>
-
+            <div class="text-center text-muted py-4">
+                No particle trajectory available.
             </div>
 
-
-            <div class="card-body">
-
-                <div
-                    class="bg-light rounded d-flex align-items-center justify-content-center"
-                    style="height: 300px;"
-                >
-
-                    <span class="text-muted">
-                        Trajectory graph
-                    </span>
-
-                </div>
-
-            </div>
+            {% endfor %}
 
         </div>
 
     </div>
 
-</div>
+    <!-- Eruption Source -->
+    <div class="card shadow-sm mb-4">
 
+        <div class="card-header">
+            <strong>Emission Source</strong>
+        </div>
 
-<!-- Summary -->
+        <div class="card-body">
 
-<div class="card shadow-sm mb-5">
+            <dl class="row mb-0">
 
-    <div class="card-header bg-white">
+                <dt class="col-sm-6">
+                    Eruption Height
+                </dt>
 
-        <h5 class="mb-0">
-            Analysis Summary
-        </h5>
+                <dd class="col-sm-6">
+                    {{ simulation.eruption.eruption_height }} m
+                </dd>
 
+                <dt class="col-sm-6">
+                    Eruption Duration
+                </dt>
+
+                <dd class="col-sm-6">
+                    {{ simulation.eruption.eruption_duration }} s
+                </dd>
+
+                <dt class="col-sm-6">
+                    Mean Wind Speed
+                </dt>
+
+                <dd class="col-sm-6">
+                    {{ "%.4f"|format(simulation.eruption.mean_wind_speed) }} m/s
+                </dd>
+
+                <dt class="col-sm-6">
+                    Mean Potential Temperature
+                </dt>
+
+                <dd class="col-sm-6">
+                    {{ "%.4f"|format(simulation.eruption.theta_mean) }} K
+                </dd>
+
+                <dt class="col-sm-6">
+                    dθ/dz
+                </dt>
+
+                <dd class="col-sm-6">
+                    {{ "%.6e"|format(simulation.eruption.dtheta_dz) }} K/m
+                </dd>
+
+                <dt class="col-sm-6">
+                    Brunt-Väisälä Frequency
+                </dt>
+
+                <dd class="col-sm-6">
+                    {{ "%.6e"|format(simulation.eruption.brunt_vaisala) }} s⁻¹
+                </dd>
+
+                <dt class="col-sm-6">
+                    MER
+                </dt>
+
+                <dd class="col-sm-6">
+                    {{ "%.6e"|format(simulation.eruption.mer) }} kg/s
+                </dd>
+
+                <dt class="col-sm-6">
+                    Total Ash Mass
+                </dt>
+
+                <dd class="col-sm-6">
+                    {{ "%.6e"|format(simulation.eruption.total_mass) }} kg
+                </dd>
+
+            </dl>
+
+        </div>
     </div>
 
-
-    <div class="card-body">
-
-        <p class="text-muted mb-0">
-            Analysis summary will be generated after the
-            simulation engine is implemented.
-        </p>
-
-    </div>
-
 </div>
-
 
 {% endblock %}
