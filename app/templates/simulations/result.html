@@ -7,69 +7,142 @@
 <div class="container-fluid py-4">
 
     <div class="d-flex justify-content-between align-items-center mb-4">
-
-        <h4 class="mb-0">
-            Simulation Result
-        </h4>
-
+        <h4 class="mb-0">Simulation Result</h4>
         <a href="/simulations/create" class="btn btn-primary">
             New Simulation
         </a>
-
     </div>
 
-
     <div class="card shadow-sm mb-4">
-
         <div class="card-header">
             <strong>Simulation Parameters</strong>
         </div>
-
         <div class="card-body">
-
             <dl class="row mb-0">
-
                 <dt class="col-sm-4">Latitude</dt>
-
-                <dd class="col-sm-8">
-                    {{ simulation.latitude }}
-                </dd>
+                <dd class="col-sm-8">{{ simulation.latitude }}</dd>
 
                 <dt class="col-sm-4">Longitude</dt>
-
-                <dd class="col-sm-8">
-                    {{ simulation.longitude }}
-                </dd>
+                <dd class="col-sm-8">{{ simulation.longitude }}</dd>
 
                 <dt class="col-sm-4">Release Altitude</dt>
-
                 <dd class="col-sm-8">
                     {{ "%.2f"|format(simulation.altitude) }} m
                 </dd>
 
                 <dt class="col-sm-4">Duration</dt>
-
                 <dd class="col-sm-8">
                     {{ simulation.duration }} seconds
                 </dd>
 
-                <dt class="col-sm-4">Time Step (Δt)</dt>
-
+                <dt class="col-sm-4">Time Step</dt>
                 <dd class="col-sm-8">
                     {{ simulation.dt }} seconds
                 </dd>
 
                 <dt class="col-sm-4">Time Index</dt>
-
                 <dd class="col-sm-8">
                     {{ simulation.time_index }}
                 </dd>
-
             </dl>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <strong>Volcanic Ash Dispersion Map</strong>
+        </div>
+
+        <div class="card-body p-0">
+
+            <div
+                id="dispersion-map"
+                style="width:100%; height:650px;"
+            ></div>
 
         </div>
     </div>
 
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <strong>Map Controls</strong>
+        </div>
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+
+                    <label
+                        for="time-slider"
+                        class="form-label"
+                    >
+                        Simulation Time
+                    </label>
+
+                    <input
+                        type="range"
+                        class="form-range"
+                        id="time-slider"
+                        min="0"
+                        max="{{ simulation.duration }}"
+                        value="0"
+                        step="{{ simulation.dt }}"
+                    >
+
+                    <div class="d-flex justify-content-between">
+
+                        <span>
+                            0 s
+                        </span>
+
+                        <strong id="current-time">
+                            0 s
+                        </strong>
+
+                        <span>
+                            {{ simulation.duration }} s
+                        </span>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-6">
+
+                    <label
+                        for="particle-filter"
+                        class="form-label"
+                    >
+                        Particle Class
+                    </label>
+
+                    <select
+                        id="particle-filter"
+                        class="form-select"
+                    >
+
+                        <option value="all">
+                            All Classes
+                        </option>
+
+                        {% for particle in simulation.particles.groups %}
+
+                        <option value="{{ particle.class }}">
+                            {{ particle.class }}
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
 
     <div class="card shadow-sm mb-4">
 
@@ -118,6 +191,80 @@
         </div>
     </div>
 
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header">
+            <strong>Meteorological Time</strong>
+        </div>
+
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Meteorological Time Steps
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+                            {{ simulation.meteorology.time_count }}
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Interval
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+
+                            {% if simulation.meteorology.interval_hours is not none %}
+
+                                {{ "%.2f"|format(
+                                    simulation.meteorology.interval_hours
+                                ) }} hours
+
+                            {% else %}
+
+                                Single time
+
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-4">
+
+                    <div class="border rounded p-3 h-100">
+
+                        <div class="text-muted small">
+                            Simulation Steps
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+                            {{ simulation.steps }}
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
 
     <div class="card shadow-sm mb-4">
 
@@ -138,13 +285,14 @@
                         </div>
 
                         <div class="fs-4 fw-bold">
-                            {{ "{:,}".format(simulation.particle_count) }}
+                            {{ "{:,}".format(
+                                simulation.particle_count
+                            ) }}
                         </div>
 
                     </div>
 
                 </div>
-
 
                 <div class="col-md-3">
 
@@ -155,13 +303,14 @@
                         </div>
 
                         <div class="fs-4 fw-bold">
-                            {{ "{:,}".format(simulation.total_particles) }}
+                            {{ "{:,}".format(
+                                simulation.total_particles
+                            ) }}
                         </div>
 
                     </div>
 
                 </div>
-
 
                 <div class="col-md-3">
 
@@ -178,7 +327,6 @@
                     </div>
 
                 </div>
-
 
                 <div class="col-md-3">
 
@@ -199,106 +347,8 @@
             </div>
 
         </div>
-    </div>
-
-
-    <!-- Dispersion Map -->
-
-    <div class="card shadow-sm mb-4">
-
-        <div class="card-header d-flex justify-content-between align-items-center">
-
-            <strong>
-                Volcanic Ash Dispersion Map
-            </strong>
-
-            <span class="badge text-bg-secondary">
-                3D
-            </span>
-
-        </div>
-
-        <div class="card-body p-0">
-
-            <div
-                id="dispersion-map"
-                style="
-                    width: 100%;
-                    height: 700px;
-                "
-            ></div>
-
-        </div>
 
     </div>
-
-
-    <!-- Map Information -->
-
-    <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-            <strong>Map Information</strong>
-        </div>
-
-        <div class="card-body">
-
-            <div class="row">
-
-                <div class="col-md-4">
-
-                    <div class="border rounded p-3 h-100">
-
-                        <div class="text-muted small">
-                            Initial Latitude
-                        </div>
-
-                        <div class="fw-bold">
-                            {{ simulation.latitude }}
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <div class="col-md-4">
-
-                    <div class="border rounded p-3 h-100">
-
-                        <div class="text-muted small">
-                            Initial Longitude
-                        </div>
-
-                        <div class="fw-bold">
-                            {{ simulation.longitude }}
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <div class="col-md-4">
-
-                    <div class="border rounded p-3 h-100">
-
-                        <div class="text-muted small">
-                            Release Altitude
-                        </div>
-
-                        <div class="fw-bold">
-                            {{ "%.2f"|format(simulation.altitude) }} m
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
 
     <div class="card shadow-sm mb-4">
 
@@ -337,19 +387,27 @@
                             </td>
 
                             <td>
-                                {{ "%.2f"|format(level.altitude) }} m
+                                {{ "%.2f"|format(
+                                    level.altitude
+                                ) }} m
                             </td>
 
                             <td>
-                                {{ "%.2f"|format(level.u) }} m/s
+                                {{ "%.2f"|format(
+                                    level.u
+                                ) }} m/s
                             </td>
 
                             <td>
-                                {{ "%.2f"|format(level.v) }} m/s
+                                {{ "%.2f"|format(
+                                    level.v
+                                ) }} m/s
                             </td>
 
                             <td>
-                                {{ "%.2f"|format(level.temperature) }} K
+                                {{ "%.2f"|format(
+                                    level.temperature
+                                ) }} K
                             </td>
 
                             <td>
@@ -378,7 +436,6 @@
 
     </div>
 
-
     <div class="card shadow-sm mb-4">
 
         <div class="card-header">
@@ -390,7 +447,9 @@
             <p>
                 Total Virtual Particles:
                 <strong>
-                    {{ "{:,}".format(simulation.particles.total) }}
+                    {{ "{:,}".format(
+                        simulation.particles.total
+                    ) }}
                 </strong>
             </p>
 
@@ -439,19 +498,6 @@
 
                         </tr>
 
-                        {% else %}
-
-                        <tr>
-
-                            <td
-                                colspan="4"
-                                class="text-center text-muted"
-                            >
-                                No particle data available.
-                            </td>
-
-                        </tr>
-
                         {% endfor %}
 
                     </tbody>
@@ -463,130 +509,6 @@
         </div>
 
     </div>
-
-
-    <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-            <strong>Particle Trajectory</strong>
-        </div>
-
-        <div class="card-body">
-
-            {% for particle in simulation.trajectories %}
-
-            <div class="mb-4">
-
-                <div class="d-flex justify-content-between align-items-center mb-2">
-
-                    <strong>
-                        Particle {{ particle.particle_id }}
-                    </strong>
-
-                    <span class="text-muted">
-
-                        {{ particle.class }}
-
-                        —
-
-                        {{ "%.8f"|format(
-                            particle.settling_velocity
-                        ) }} m/s
-
-                    </span>
-
-                </div>
-
-
-                <div class="table-responsive">
-
-                    <table class="table table-sm table-striped table-hover">
-
-                        <thead>
-
-                            <tr>
-                                <th>Time</th>
-                                <th>Latitude</th>
-                                <th>Longitude</th>
-                                <th>Altitude</th>
-                                <th>U</th>
-                                <th>V</th>
-                                <th>Vertical</th>
-                            </tr>
-
-                        </thead>
-
-
-                        <tbody>
-
-                            {% for point in particle.trajectory %}
-
-                            <tr>
-
-                                <td>
-                                    {{ point.time }} s
-                                </td>
-
-                                <td>
-                                    {{ "%.6f"|format(
-                                        point.latitude
-                                    ) }}
-                                </td>
-
-                                <td>
-                                    {{ "%.6f"|format(
-                                        point.longitude
-                                    ) }}
-                                </td>
-
-                                <td>
-                                    {{ "%.2f"|format(
-                                        point.altitude
-                                    ) }} m
-                                </td>
-
-                                <td>
-                                    {{ "%.2f"|format(
-                                        point.u
-                                    ) }} m/s
-                                </td>
-
-                                <td>
-                                    {{ "%.2f"|format(
-                                        point.v
-                                    ) }} m/s
-                                </td>
-
-                                <td>
-                                    {{ "%.4f"|format(
-                                        point.vertical
-                                    ) }} m/s
-                                </td>
-
-                            </tr>
-
-                            {% endfor %}
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            </div>
-
-            {% else %}
-
-            <div class="text-center text-muted py-4">
-                No particle trajectory available.
-            </div>
-
-            {% endfor %}
-
-        </div>
-
-    </div>
-
 
     <div class="card shadow-sm mb-4">
 
@@ -682,308 +604,351 @@
 
 </div>
 
-
 <link
     rel="stylesheet"
-    href="https://js.arcgis.com/4.34/esri/themes/light/main.css"
->
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
 
-<script src="https://js.arcgis.com/4.34/"></script>
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
 
 <script>
 
-require([
-    "esri/Map",
-    "esri/views/MapView",
-    "esri/Graphic",
-    "esri/layers/GraphicsLayer",
-    "esri/geometry/Polyline",
-    "esri/geometry/Point"
-], function (
-    Map,
-    MapView,
-    Graphic,
-    GraphicsLayer,
-    Polyline,
-    Point
+const trajectoryData =
+    {{ simulation.geojson.trajectory | tojson }};
+
+const pointData =
+    {{ simulation.geojson.points | tojson }};
+
+const sourceLatitude =
+    {{ simulation.latitude }};
+
+const sourceLongitude =
+    {{ simulation.longitude }};
+
+const simulationDuration =
+    {{ simulation.duration }};
+
+const simulationDt =
+    {{ simulation.dt }};
+
+const map =
+    L.map("dispersion-map");
+
+L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+        maxZoom: 19,
+        attribution:
+            '&copy; OpenStreetMap contributors'
+    }
+).addTo(map);
+
+const trajectoryLayer =
+    L.layerGroup().addTo(map);
+
+const particleLayer =
+    L.layerGroup().addTo(map);
+
+const sourceLayer =
+    L.layerGroup().addTo(map);
+
+const sourceMarker =
+    L.circleMarker(
+        [
+            sourceLatitude,
+            sourceLongitude
+        ],
+        {
+            radius: 9,
+            color: "#dc3545",
+            weight: 2,
+            fillColor: "#dc3545",
+            fillOpacity: 1
+        }
+    );
+
+sourceMarker.bindPopup(
+    "<strong>Volcano Source</strong><br>" +
+    "Latitude: " +
+    sourceLatitude +
+    "<br>" +
+    "Longitude: " +
+    sourceLongitude
+);
+
+sourceLayer.addLayer(
+    sourceMarker
+);
+
+const trajectoryBounds = [];
+
+if (
+    trajectoryData &&
+    trajectoryData.features
 ) {
 
-    const map = new Map({
-        basemap: "topo-vector"
-    });
+    trajectoryData.features.forEach(
+        function(feature) {
 
-    const view = new MapView({
-        container: "dispersion-map",
-        map: map,
-        center: [
-            {{ simulation.longitude }},
-            {{ simulation.latitude }}
-        ],
-        zoom: 8
-    });
-
-    const trajectoryLayer = new GraphicsLayer({
-        title: "Particle Trajectories"
-    });
-
-    const particleLayer = new GraphicsLayer({
-        title: "Particle Positions"
-    });
-
-    map.add(trajectoryLayer);
-    map.add(particleLayer);
-
-    const trajectories =
-        {{ simulation.trajectories | tojson }};
-
-
-    trajectories.forEach(function (particle) {
-
-        const coordinates = [];
-
-        particle.trajectory.forEach(function (point) {
-
-            coordinates.push([
-                point.longitude,
-                point.latitude
-            ]);
-
-        });
-
-        if (coordinates.length < 2) {
-            return;
-        }
-
-        const polyline = new Polyline({
-            paths: [
-                coordinates
-            ],
-            spatialReference: {
-                wkid: 4326
+            if (
+                !feature.geometry ||
+                !feature.geometry.coordinates
+            ) {
+                return;
             }
-        });
 
-        const graphic = new Graphic({
-            geometry: polyline,
+            const coordinates =
+                feature.geometry.coordinates;
 
-            attributes: {
-                particle_id:
-                    particle.particle_id,
+            if (
+                coordinates.length < 2
+            ) {
+                return;
+            }
 
-                particle_class:
-                    particle.class,
+            const latLngs =
+                coordinates.map(
+                    function(coordinate) {
 
-                radius:
-                    particle.radius,
+                        const longitude =
+                            Number(
+                                coordinate[0]
+                            );
 
-                mass:
-                    particle.mass,
+                        const latitude =
+                            Number(
+                                coordinate[1]
+                            );
 
-                settling_velocity:
-                    particle.settling_velocity
-            },
+                        trajectoryBounds.push([
+                            latitude,
+                            longitude
+                        ]);
 
-            symbol: {
-                type: "simple-line",
-                color: [
-                    255,
-                    80,
-                    0
-                ],
-                width: 2
-            },
+                        return [
+                            latitude,
+                            longitude
+                        ];
 
-            popupTemplate: {
-                title:
-                    "Particle {particle_id}",
-
-                content: [
-                    {
-                        type: "fields",
-
-                        fieldInfos: [
-                            {
-                                fieldName:
-                                    "particle_id",
-
-                                label:
-                                    "Particle ID"
-                            },
-
-                            {
-                                fieldName:
-                                    "particle_class",
-
-                                label:
-                                    "Class"
-                            },
-
-                            {
-                                fieldName:
-                                    "radius",
-
-                                label:
-                                    "Radius"
-                            },
-
-                            {
-                                fieldName:
-                                    "mass",
-
-                                label:
-                                    "Mass"
-                            },
-
-                            {
-                                fieldName:
-                                    "settling_velocity",
-
-                                label:
-                                    "Settling Velocity"
-                            }
-                        ]
                     }
-                ]
-            }
-        });
+                );
 
-        trajectoryLayer.add(
-            graphic
-        );
+            const properties =
+                feature.properties || {};
 
-    });
-
-
-    trajectories.forEach(function (particle) {
-
-        if (
-            !particle.trajectory ||
-            particle.trajectory.length === 0
-        ) {
-            return;
-        }
-
-        const firstPoint =
-            particle.trajectory[0];
-
-        const point = new Point({
-            longitude:
-                firstPoint.longitude,
-
-            latitude:
-                firstPoint.latitude,
-
-            spatialReference: {
-                wkid: 4326
-            }
-        });
-
-        const graphic = new Graphic({
-            geometry: point,
-
-            attributes: {
-                particle_id:
-                    particle.particle_id,
-
-                particle_class:
-                    particle.class,
-
-                altitude:
-                    firstPoint.altitude,
-
-                time:
-                    firstPoint.time
-            },
-
-            symbol: {
-                type: "simple-marker",
-
-                size: 8,
-
-                color: [
-                    255,
-                    140,
-                    0
-                ],
-
-                outline: {
-                    color: [
-                        255,
-                        255,
-                        255
-                    ],
-                    width: 1
-                }
-            },
-
-            popupTemplate: {
-                title:
-                    "Particle {particle_id}",
-
-                content: [
+            const line =
+                L.polyline(
+                    latLngs,
                     {
-                        type: "fields",
-
-                        fieldInfos: [
-                            {
-                                fieldName:
-                                    "particle_id",
-
-                                label:
-                                    "Particle ID"
-                            },
-
-                            {
-                                fieldName:
-                                    "particle_class",
-
-                                label:
-                                    "Class"
-                            },
-
-                            {
-                                fieldName:
-                                    "altitude",
-
-                                label:
-                                    "Altitude"
-                            },
-
-                            {
-                                fieldName:
-                                    "time",
-
-                                label:
-                                    "Simulation Time"
-                            }
-                        ]
+                        color: "#0d6efd",
+                        weight: 2,
+                        opacity: 0.7
                     }
-                ]
-            }
-        });
+                );
 
-        particleLayer.add(
-            graphic
-        );
+            line.bindPopup(
+                "<strong>Particle Trajectory</strong><br>" +
+                "Particle ID: " +
+                (properties.particle_id ?? "-") +
+                "<br>" +
+                "Class: " +
+                (properties.class ?? "-") +
+                "<br>" +
+                "Radius: " +
+                (properties.radius ?? "-") +
+                "<br>" +
+                "Mass: " +
+                (properties.mass ?? "-") +
+                "<br>" +
+                "Settling Velocity: " +
+                (properties.settling_velocity ?? "-")
+            );
 
-    });
-
-
-    view.when(function () {
-
-        if (
-            trajectoryLayer.graphics.length > 0
-        ) {
-
-            view.goTo(
-                trajectoryLayer.graphics.toArray()
+            trajectoryLayer.addLayer(
+                line
             );
 
         }
+    );
 
-    });
+}
 
-});
+function renderParticles(
+    simulationTime,
+    particleClass
+) {
+
+    particleLayer.clearLayers();
+
+    if (
+        !pointData ||
+        !pointData.features
+    ) {
+        return;
+    }
+
+    pointData.features.forEach(
+        function(feature) {
+
+            if (
+                !feature.geometry ||
+                !feature.geometry.coordinates
+            ) {
+                return;
+            }
+
+            const properties =
+                feature.properties || {};
+
+            const particleTime =
+                Number(
+                    properties.time
+                );
+
+            if (
+                particleTime >
+                simulationTime
+            ) {
+                return;
+            }
+
+            if (
+                particleClass !== "all" &&
+                String(properties.class) !==
+                String(particleClass)
+            ) {
+                return;
+            }
+
+            const coordinates =
+                feature.geometry.coordinates;
+
+            const longitude =
+                Number(
+                    coordinates[0]
+                );
+
+            const latitude =
+                Number(
+                    coordinates[1]
+                );
+
+            const marker =
+                L.circleMarker(
+                    [
+                        latitude,
+                        longitude
+                    ],
+                    {
+                        radius: 4,
+                        color: "#ffc107",
+                        weight: 1,
+                        fillColor: "#ffc107",
+                        fillOpacity: 0.7
+                    }
+                );
+
+            marker.bindPopup(
+                "<strong>Volcanic Ash Particle</strong><br>" +
+                "Particle ID: " +
+                (properties.particle_id ?? "-") +
+                "<br>" +
+                "Class: " +
+                (properties.class ?? "-") +
+                "<br>" +
+                "Time: " +
+                (properties.time ?? "-") +
+                " s<br>" +
+                "Altitude: " +
+                (properties.altitude ?? "-") +
+                " m<br>" +
+                "U: " +
+                (properties.u ?? "-") +
+                " m/s<br>" +
+                "V: " +
+                (properties.v ?? "-") +
+                " m/s"
+            );
+
+            particleLayer.addLayer(
+                marker
+            );
+
+        }
+    );
+
+}
+
+const slider =
+    document.getElementById(
+        "time-slider"
+    );
+
+const currentTime =
+    document.getElementById(
+        "current-time"
+    );
+
+const particleFilter =
+    document.getElementById(
+        "particle-filter"
+    );
+
+function updateMap() {
+
+    const time =
+        Number(
+            slider.value
+        );
+
+    currentTime.textContent =
+        time + " s";
+
+    renderParticles(
+        time,
+        particleFilter.value
+    );
+}
+
+slider.addEventListener(
+    "input",
+    updateMap
+);
+
+particleFilter.addEventListener(
+    "change",
+    updateMap
+);
+
+if (
+    trajectoryBounds.length > 0
+) {
+
+    map.fitBounds(
+        trajectoryBounds,
+        {
+            padding: [
+                30,
+                30
+            ]
+        }
+    );
+
+} else {
+
+    map.setView(
+        [
+            sourceLatitude,
+            sourceLongitude
+        ],
+        8
+    );
+
+}
+
+updateMap();
 
 </script>
 

@@ -8,7 +8,7 @@ class ParticleService:
         particle_density: float = 2500.0,
         air_density: float = 1.225,
         gravity: float = 9.81,
-        total_particles: int = 50
+        total_particles: int = 500
     ):
         self.particle_density = particle_density
         self.air_density = air_density

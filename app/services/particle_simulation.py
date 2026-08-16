@@ -18,18 +18,20 @@ class ParticleSimulationService:
         latitude,
         longitude,
         altitude,
-        time_index=0
+        time_index
     ):
-        wind = self.meteorology.wind_at_altitude(
-            latitude=latitude,
-            longitude=longitude,
-            altitude=altitude,
-            time_index=time_index
+        wind = (
+            self.meteorology.wind_at_altitude(
+                latitude=latitude,
+                longitude=longitude,
+                altitude=altitude,
+                time_index=time_index
+            )
         )
 
         return {
-            "u": float(wind["u"]),
-            "v": float(wind["v"]),
+            "u": wind["u"],
+            "v": wind["v"],
             "vertical": 0.0
         }
 
@@ -38,15 +40,10 @@ class ParticleSimulationService:
         latitude,
         longitude,
         altitude,
-        dt=60,
-        time_index=0,
-        settling_velocity=0.0
+        dt,
+        time_index,
+        settling_velocity
     ):
-        if dt <= 0:
-            raise ValueError(
-                "Time step must be greater than zero."
-            )
-
         velocity = self.velocity(
             latitude=latitude,
             longitude=longitude,
@@ -56,11 +53,7 @@ class ParticleSimulationService:
 
         earth_radius = 6371000.0
 
-        latitude_radians = math.radians(
-            latitude
-        )
-
-        delta_latitude = (
+        d_lat = (
             velocity["v"]
             * dt
             / earth_radius
@@ -68,16 +61,18 @@ class ParticleSimulationService:
             180.0 / math.pi
         )
 
-        cos_latitude = max(
-            abs(
-                math.cos(
-                    latitude_radians
-                )
-            ),
-            1e-8
+        cos_latitude = math.cos(
+            math.radians(
+                latitude
+            )
         )
 
-        delta_longitude = (
+        if abs(
+            cos_latitude
+        ) < 1e-8:
+            cos_latitude = 1e-8
+
+        d_lon = (
             velocity["u"]
             * dt
             / (
@@ -87,26 +82,6 @@ class ParticleSimulationService:
         ) * (
             180.0 / math.pi
         )
-
-        settling_velocity = max(
-            float(settling_velocity),
-            0.0
-        )
-
-        new_latitude = (
-            latitude
-            + delta_latitude
-        )
-
-        new_longitude = (
-            longitude
-            + delta_longitude
-        )
-
-        new_longitude = (
-            (new_longitude + 180.0)
-            % 360.0
-        ) - 180.0
 
         new_altitude = (
             altitude
@@ -119,10 +94,13 @@ class ParticleSimulationService:
         )
 
         return {
-            "latitude": new_latitude,
-            "longitude": new_longitude,
+            "latitude": latitude + d_lat,
+            "longitude": longitude + d_lon,
             "altitude": new_altitude,
             "u": velocity["u"],
             "v": velocity["v"],
-            "vertical": -settling_velocity
+            "vertical": -settling_velocity,
+            "time_index": int(
+                time_index
+            )
         }

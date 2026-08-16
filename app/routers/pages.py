@@ -22,7 +22,6 @@ meteorology_service = MeteorologyService(
 )
 
 turbulence = TurbulenceService()
-
 particle_service = ParticleService()
 eruption_service = EruptionService()
 
@@ -37,6 +36,7 @@ dispersion = DispersionService(
     meteorology=meteorology_service
 )
 
+geojson_service = GeoJSONService()
 
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
@@ -55,7 +55,10 @@ async def create_simulation(request: Request):
     )
 
 
-@router.post("/simulations/run", response_class=HTMLResponse)
+@router.post(
+    "/simulations/run",
+    response_class=HTMLResponse
+)
 async def run_simulation(
     request: Request,
     latitude: float = Form(...),
@@ -64,13 +67,15 @@ async def run_simulation(
     eruption_height: float = Form(...),
     eruption_duration: float = Form(...),
     duration: int = Form(...),
-    dt: int = Form(...),
-    time_index: int = Form(...)
+    dt: int = Form(...)
 ):
-    atmospheric = meteorology_service.atmospheric_profile(
-        latitude=latitude,
-        longitude=longitude,
-        time_index=time_index
+    atmospheric = (
+        meteorology_service
+        .atmospheric_profile(
+            latitude=latitude,
+            longitude=longitude,
+            time_index=0
+        )
     )
 
     eruption = eruption_service.calculate(
@@ -79,35 +84,40 @@ async def run_simulation(
         eruption_duration=eruption_duration
     )
 
-    particle_summary = particle_service.create_particle_summary(
-        total_mass=eruption["total_mass"]
+    particle_summary = (
+        particle_service
+        .create_particle_summary(
+            total_mass=eruption[
+                "total_mass"
+            ]
+        )
     )
 
-    particles = particle_service.create_particles(
-        total_mass=eruption["total_mass"],
-        latitude=latitude,
-        longitude=longitude,
-        altitude=altitude
+    particles = (
+        particle_service.create_particles(
+            total_mass=eruption[
+                "total_mass"
+            ],
+            latitude=latitude,
+            longitude=longitude,
+            altitude=altitude
+        )
     )
 
-    grid = meteorology_service.nearest_grid(
-        latitude,
-        longitude
+    grid = (
+        meteorology_service.nearest_grid(
+            latitude=latitude,
+            longitude=longitude
+        )
     )
 
-    dispersion_result = dispersion.simulate(
-        particles=particles,
-        duration=duration,
-        dt=dt,
-        time_index=time_index
+    dispersion_result = (
+        dispersion.simulate(
+            particles=particles,
+            duration=duration,
+            dt=dt
+        )
     )
-
-    total_particles = sum(
-        particle.get("count", 1)
-        for particle in particles
-    )
-
-    geojson_service = GeoJSONService()
 
     trajectory_geojson = (
         geojson_service
@@ -122,14 +132,44 @@ async def run_simulation(
             dispersion_result
         )
     )
+
+    total_particles = sum(
+        particle.get(
+            "count",
+            1
+        )
+        for particle in particles
+    )
+
+    time_information = (
+        meteorology_service
+        .time_information()
+    )
+
     simulation = {
         "latitude": latitude,
         "longitude": longitude,
         "altitude": altitude,
         "duration": duration,
         "dt": dt,
-        "time_index": time_index,
         "grid": grid,
+        "meteorology": {
+            "time_count": time_information[
+                "count"
+            ],
+            "interval_seconds": time_information[
+                "interval_seconds"
+            ],
+            "interval_hours": time_information[
+                "interval_hours"
+            ],
+            "times": [
+                str(time)
+                for time in time_information[
+                    "times"
+                ]
+            ]
+        },
         "atmospheric": atmospheric,
         "eruption": eruption,
         "particle_summary": particle_summary,
@@ -137,16 +177,20 @@ async def run_simulation(
             "total": total_particles,
             "groups": particles
         },
-        "particle_count": dispersion_result[
-            "particle_count"
-        ],
+        "particle_count": (
+            dispersion_result[
+                "particle_count"
+            ]
+        ),
         "total_particles": total_particles,
         "steps": dispersion_result[
             "steps"
         ],
-        "trajectories": dispersion_result[
-            "trajectories"
-        ],
+        "trajectories": (
+            dispersion_result[
+                "trajectories"
+            ]
+        ),
         "geojson": {
             "trajectory": trajectory_geojson,
             "points": point_geojson
@@ -167,66 +211,6 @@ async def simulation_result(request: Request):
         name="simulations/result.html",
         context={}
     )
-
-@router.post("/simulations/geojson")
-async def simulation_geojson(
-    request: Request,
-    latitude: float = Form(...),
-    longitude: float = Form(...),
-    altitude: float = Form(...),
-    duration: int = Form(...),
-    dt: int = Form(...),
-    time_index: int = Form(...)
-):
-    meteorology = MeteorologyService(
-        file_path="data/era_merapi.nc"
-    )
-
-    turbulence = TurbulenceService()
-
-    particle_simulation = (
-        ParticleSimulationService(
-            meteorology=meteorology,
-            turbulence=turbulence,
-            particle=None
-        )
-    )
-
-    dispersion = DispersionService(
-        particle_simulation=particle_simulation,
-        meteorology=meteorology
-    )
-
-    particles = request.state.particles
-
-    result = dispersion.simulate(
-        particles=particles,
-        duration=duration,
-        dt=dt,
-        time_index=time_index
-    )
-
-    geojson_service = GeoJSONService()
-
-    trajectory_geojson = (
-        geojson_service
-        .trajectory_to_feature_collection(
-            dispersion_result
-        )
-    )
-
-    point_geojson = (
-        geojson_service
-        .trajectory_points_to_feature_collection(
-            dispersion_result
-        )
-    )
-
-    return {
-        "simulation": result,
-        "trajectory": trajectory_geojson,
-        "points": point_geojson
-    }
 
 @router.get("/simulations/history", response_class=HTMLResponse)
 async def simulation_history(request: Request):

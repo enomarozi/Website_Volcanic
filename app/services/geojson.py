@@ -9,12 +9,14 @@ class GeoJSONService:
     ):
         features = []
 
-        for particle in simulation["trajectories"]:
-            trajectory = particle["trajectory"]
-
+        for particle in simulation[
+            "trajectories"
+        ]:
             coordinates = []
 
-            for point in trajectory:
+            for point in particle[
+                "trajectory"
+            ]:
                 coordinates.append([
                     point["longitude"],
                     point["latitude"],
@@ -24,17 +26,27 @@ class GeoJSONService:
             if len(coordinates) < 2:
                 continue
 
+            properties = {
+                "particle_id": particle[
+                    "particle_id"
+                ],
+                "class": particle[
+                    "class"
+                ],
+                "radius": particle[
+                    "radius"
+                ],
+                "mass": particle[
+                    "mass"
+                ],
+                "settling_velocity": particle[
+                    "settling_velocity"
+                ]
+            }
+
             features.append({
                 "type": "Feature",
-                "properties": {
-                    "particle_id": particle["particle_id"],
-                    "class": particle["class"],
-                    "radius": particle["radius"],
-                    "mass": particle["mass"],
-                    "settling_velocity": particle[
-                        "settling_velocity"
-                    ]
-                },
+                "properties": properties,
                 "geometry": {
                     "type": "LineString",
                     "coordinates": coordinates
@@ -52,30 +64,45 @@ class GeoJSONService:
     ):
         features = []
 
-        for particle in simulation["trajectories"]:
-            for point in particle["trajectory"]:
+        for particle in simulation[
+            "trajectories"
+        ]:
+            for point in particle[
+                "trajectory"
+            ]:
                 features.append({
                     "type": "Feature",
                     "properties": {
                         "particle_id": particle[
                             "particle_id"
                         ],
-                        "class": particle["class"],
-                        "radius": particle["radius"],
-                        "mass": particle["mass"],
+                        "class": particle[
+                            "class"
+                        ],
+                        "radius": particle[
+                            "radius"
+                        ],
+                        "mass": particle[
+                            "mass"
+                        ],
                         "settling_velocity": particle[
                             "settling_velocity"
                         ],
-                        "step": point["step"],
-                        "time": point["time"],
+                        "time": point[
+                            "time"
+                        ],
                         "time_index": point[
                             "time_index"
                         ],
                         "altitude": point[
                             "altitude"
                         ],
-                        "u": point["u"],
-                        "v": point["v"],
+                        "u": point[
+                            "u"
+                        ],
+                        "v": point[
+                            "v"
+                        ],
                         "vertical": point[
                             "vertical"
                         ]
@@ -83,9 +110,12 @@ class GeoJSONService:
                     "geometry": {
                         "type": "Point",
                         "coordinates": [
-                            point["longitude"],
-                            point["latitude"],
-                            point["altitude"]
+                            point[
+                                "longitude"
+                            ],
+                            point[
+                                "latitude"
+                            ]
                         ]
                     }
                 })
@@ -94,12 +124,3 @@ class GeoJSONService:
             "type": "FeatureCollection",
             "features": features
         }
-
-    def to_json(
-        self,
-        geojson
-    ):
-        return json.dumps(
-            geojson,
-            ensure_ascii=False
-        )
