@@ -1,6 +1,3 @@
-import math
-
-
 class ParticleSimulationService:
 
     def __init__(
@@ -20,8 +17,10 @@ class ParticleSimulationService:
         altitude,
         time_index
     ):
+
         wind = (
-            self.meteorology.wind_at_altitude(
+            self.meteorology
+            .wind_at_altitude(
                 latitude=latitude,
                 longitude=longitude,
                 altitude=altitude,
@@ -30,9 +29,12 @@ class ParticleSimulationService:
         )
 
         return {
-            "u": wind["u"],
-            "v": wind["v"],
-            "vertical": 0.0
+            "u": float(
+                wind["u"]
+            ),
+            "v": float(
+                wind["v"]
+            )
         }
 
     def step(
@@ -44,6 +46,7 @@ class ParticleSimulationService:
         time_index,
         settling_velocity
     ):
+
         velocity = self.velocity(
             latitude=latitude,
             longitude=longitude,
@@ -51,56 +54,69 @@ class ParticleSimulationService:
             time_index=time_index
         )
 
+        u = velocity["u"]
+        v = velocity["v"]
+
         earth_radius = 6371000.0
 
-        d_lat = (
-            velocity["v"]
-            * dt
-            / earth_radius
-        ) * (
-            180.0 / math.pi
+        latitude_rad = (
+            latitude * 3.141592653589793
+            / 180.0
         )
 
-        cos_latitude = math.cos(
-            math.radians(
-                latitude
+        meters_per_degree_lat = (
+            111320.0
+        )
+
+        meters_per_degree_lon = (
+            111320.0
+            * max(
+                0.01,
+                abs(
+                    __import__(
+                        "math"
+                    ).cos(
+                        latitude_rad
+                    )
+                )
             )
         )
 
-        if abs(
-            cos_latitude
-        ) < 1e-8:
-            cos_latitude = 1e-8
-
-        d_lon = (
-            velocity["u"]
-            * dt
-            / (
-                earth_radius
-                * cos_latitude
-            )
-        ) * (
-            180.0 / math.pi
+        delta_latitude = (
+            v * dt
+            / meters_per_degree_lat
         )
 
-        new_altitude = (
-            altitude
-            - settling_velocity * dt
+        delta_longitude = (
+            u * dt
+            / meters_per_degree_lon
+        )
+
+        vertical = (
+            -settling_velocity
+        )
+
+        new_latitude = (
+            latitude + delta_latitude
+        )
+
+        new_longitude = (
+            longitude + delta_longitude
         )
 
         new_altitude = max(
-            new_altitude,
-            0.0
+            0.0,
+            altitude + (
+                vertical * dt
+            )
         )
 
         return {
-            "latitude": latitude + d_lat,
-            "longitude": longitude + d_lon,
+            "latitude": new_latitude,
+            "longitude": new_longitude,
             "altitude": new_altitude,
-            "u": velocity["u"],
-            "v": velocity["v"],
-            "vertical": -settling_velocity,
-            "time_index": int(
-                time_index
-            )
+            "u": u,
+            "v": v,
+            "vertical": vertical,
+            "time_index": time_index
         }

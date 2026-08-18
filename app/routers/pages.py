@@ -1,8 +1,11 @@
 from pathlib import Path
+
 from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+
 from app.schemas.simulation import SimulationConfig
+
 from app.services.meteorology import MeteorologyService
 from app.services.turbulence import TurbulenceService
 from app.services.particle import ParticleService
@@ -11,19 +14,32 @@ from app.services.dispersion import DispersionService
 from app.services.eruption import EruptionService
 from app.services.geojson import GeoJSONService
 
+
 router = APIRouter()
 
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(
+    directory="app/templates"
+)
+
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
+
 meteorology_service = MeteorologyService(
-    str(BASE_DIR / "data" / "era5_pressure_jan_2026.nc")
+    str(
+        BASE_DIR
+        / "data"
+        / "era5_pressure_jan_2026.nc"
+    )
 )
 
+
 turbulence = TurbulenceService()
+
 particle_service = ParticleService()
+
 eruption_service = EruptionService()
+
 
 particle_simulation = ParticleSimulationService(
     meteorology=meteorology_service,
@@ -31,27 +47,50 @@ particle_simulation = ParticleSimulationService(
     particle=particle_service
 )
 
+
 dispersion = DispersionService(
     particle_simulation=particle_simulation,
     meteorology=meteorology_service
 )
 
+
 geojson_service = GeoJSONService()
 
-@router.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
+
+@router.get(
+    "/",
+    response_class=HTMLResponse
+)
+async def dashboard(
+    request: Request
+):
+
     return templates.TemplateResponse(
         request=request,
         name="dashboard.html",
         context={}
     )
 
-@router.get("/simulations/create", response_class=HTMLResponse)
-async def create_simulation(request: Request):
+
+@router.get(
+    "/simulations/create",
+    response_class=HTMLResponse
+)
+async def create_simulation(
+    request: Request
+):
+
+    time_information = (
+        meteorology_service
+        .time_information()
+    )
+
     return templates.TemplateResponse(
         request=request,
         name="simulations/create.html",
-        context={}
+        context={
+            "meteorology": time_information
+        }
     )
 
 
@@ -61,28 +100,79 @@ async def create_simulation(request: Request):
 )
 async def run_simulation(
     request: Request,
+
+    volcano_name: str = Form(...),
+
     latitude: float = Form(...),
+
     longitude: float = Form(...),
+
+    start_date: str = Form(...),
+
+    start_time: str = Form(...),
+
+    dataset: str = Form(...),
+
     altitude: float = Form(...),
+
     eruption_height: float = Form(...),
+
     eruption_duration: float = Form(...),
+
+    particle_count: int = Form(...),
+
+    mean_radius: float = Form(...),
+
+    sigma: float = Form(...),
+
     duration: int = Form(...),
-    dt: int = Form(...)
+
+    timestep: int = Form(...)
 ):
+
+    config = SimulationConfig(
+        volcano_name=volcano_name,
+        latitude=latitude,
+        longitude=longitude,
+        start_date=start_date,
+        start_time=start_time,
+        dataset=dataset,
+        altitude=altitude,
+        eruption_height=eruption_height,
+        eruption_duration=eruption_duration,
+        particle_count=particle_count,
+        mean_radius=mean_radius,
+        sigma=sigma,
+        duration=duration,
+        timestep=timestep
+    )
+
+
+    time_information = (
+        meteorology_service
+        .time_information()
+    )
+
+
     atmospheric = (
         meteorology_service
         .atmospheric_profile(
-            latitude=latitude,
-            longitude=longitude,
+            latitude=config.latitude,
+            longitude=config.longitude,
             time_index=0
         )
     )
 
-    eruption = eruption_service.calculate(
-        atmospheric_profile=atmospheric,
-        eruption_height=eruption_height,
-        eruption_duration=eruption_duration
+
+    eruption = (
+        eruption_service
+        .calculate(
+            atmospheric_profile=atmospheric,
+            eruption_height=config.eruption_height,
+            eruption_duration=config.eruption_duration
+        )
     )
+
 
     particle_summary = (
         particle_service
@@ -93,31 +183,38 @@ async def run_simulation(
         )
     )
 
+
     particles = (
-        particle_service.create_particles(
+        particle_service
+        .create_particles(
             total_mass=eruption[
                 "total_mass"
             ],
-            latitude=latitude,
-            longitude=longitude,
-            altitude=altitude
+            latitude=config.latitude,
+            longitude=config.longitude,
+            altitude=config.altitude
         )
     )
+
 
     grid = (
-        meteorology_service.nearest_grid(
-            latitude=latitude,
-            longitude=longitude
+        meteorology_service
+        .nearest_grid(
+            latitude=config.latitude,
+            longitude=config.longitude
         )
     )
 
+
     dispersion_result = (
-        dispersion.simulate(
+        dispersion
+        .simulate(
             particles=particles,
-            duration=duration,
-            dt=dt
+            duration=config.duration,
+            dt=config.timestep
         )
     )
+
 
     trajectory_geojson = (
         geojson_service
@@ -126,6 +223,7 @@ async def run_simulation(
         )
     )
 
+
     point_geojson = (
         geojson_service
         .trajectory_points_to_feature_collection(
@@ -133,69 +231,88 @@ async def run_simulation(
         )
     )
 
-    total_particles = sum(
-        particle.get(
-            "count",
-            1
-        )
-        for particle in particles
+
+    total_particles = (
+        dispersion_result[
+            "total_particles"
+        ]
     )
 
-    time_information = (
-        meteorology_service
-        .time_information()
-    )
 
     simulation = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "altitude": altitude,
-        "duration": duration,
-        "dt": dt,
-        "grid": grid,
-        "meteorology": {
-            "time_count": time_information[
-                "count"
-            ],
-            "interval_seconds": time_information[
-                "interval_seconds"
-            ],
-            "interval_hours": time_information[
-                "interval_hours"
-            ],
-            "times": [
-                str(time)
-                for time in time_information[
-                    "times"
-                ]
-            ]
+
+        "config": {
+            "volcano_name": config.volcano_name,
+            "latitude": config.latitude,
+            "longitude": config.longitude,
+            "start_date": config.start_date,
+            "start_time": config.start_time,
+            "dataset": config.dataset,
+            "altitude": config.altitude,
+            "eruption_height": config.eruption_height,
+            "eruption_duration": config.eruption_duration,
+            "particle_count": config.particle_count,
+            "mean_radius": config.mean_radius,
+            "sigma": config.sigma,
+            "duration": config.duration,
+            "timestep": config.timestep
         },
+
+        "volcano_name": config.volcano_name,
+
+        "latitude": config.latitude,
+
+        "longitude": config.longitude,
+
+        "altitude": config.altitude,
+
+        "start_date": config.start_date,
+
+        "start_time": config.start_time,
+
+        "dataset": config.dataset,
+
+        "duration": config.duration,
+
+        "dt": config.timestep,
+
+        "grid": grid,
+
+        "meteorology": dispersion_result[
+            "meteorology"
+        ],
+
         "atmospheric": atmospheric,
+
         "eruption": eruption,
+
         "particle_summary": particle_summary,
+
         "particles": {
             "total": total_particles,
             "groups": particles
         },
-        "particle_count": (
-            dispersion_result[
-                "particle_count"
-            ]
-        ),
+
+        "particle_count": dispersion_result[
+            "particle_count"
+        ],
+
         "total_particles": total_particles,
+
         "steps": dispersion_result[
             "steps"
         ],
-        "trajectories": (
-            dispersion_result[
-                "trajectories"
-            ]
-        ),
+
+        "trajectories": dispersion_result[
+            "trajectories"
+        ],
+
         "geojson": {
             "trajectory": trajectory_geojson,
             "points": point_geojson
         }
     }
+
 
     return templates.TemplateResponse(
         request=request,
@@ -204,12 +321,99 @@ async def run_simulation(
             "simulation": simulation
         }
     )
-@router.get("/simulations/result", response_class=HTMLResponse)
-async def simulation_result(request: Request):
+
+
+@router.get(
+    "/simulations/result",
+    response_class=HTMLResponse
+)
+async def simulation_result(
+    request: Request
+):
+
+    return templates.TemplateResponse(
+        request=request,
+        name="simulations/result.html",
+        context={
+            "simulation": None
+        }
+    )
+
+
+@router.get(
+    "/simulations/result",
+    response_class=HTMLResponse
+)
+async def simulation_result(
+    request: Request
+):
+
+    return templates.TemplateResponse(
+
+        request=request,
+
+        name="simulations/result.html",
+
+        context={}
+    )
+
+
+@router.get(
+    "/simulations/result",
+    response_class=HTMLResponse
+)
+async def simulation_result(
+    request: Request
+):
+
     return templates.TemplateResponse(
         request=request,
         name="simulations/result.html",
         context={}
+    )
+
+@router.get(
+    "/simulations/result",
+    response_class=HTMLResponse
+)
+async def simulation_result(
+    request: Request
+):
+
+    return templates.TemplateResponse(
+        request=request,
+        name="simulations/result.html",
+        context={}
+    )
+
+
+@router.get(
+    "/simulations/result",
+    response_class=HTMLResponse
+)
+async def simulation_result(
+    request: Request
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="simulations/result.html",
+        context={}
+    )
+
+
+@router.get(
+    "/simulations/result",
+    response_class=HTMLResponse
+)
+async def simulation_result(
+    request: Request
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="simulations/result.html",
+        context={
+            "simulation": None
+        }
     )
 
 @router.get("/simulations/history", response_class=HTMLResponse)

@@ -1,181 +1,673 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}
-Create Simulation - Volcanic Ash Analysis
-{% endblock %}
+{% block title %}New Simulation{% endblock %}
 
 {% block content %}
 
 <div class="container-fluid py-4">
 
-    <div class="mb-4">
-        <h2>Create Volcanic Ash Simulation</h2>
-        <p class="text-muted mb-0">
-            Configure the eruption and atmospheric dispersion simulation.
-        </p>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-1">New Simulation</h4>
+            <p class="text-muted mb-0">
+                Configure volcanic ash dispersion simulation
+            </p>
+        </div>
+
+        <a
+            href="/"
+            class="btn btn-outline-secondary"
+        >
+            Dashboard
+        </a>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="card-body">
+    <form
+        method="post"
+        action="/simulations/run"
+    >
 
-            <form method="post" action="/simulations/run">
+        <div class="card shadow-sm mb-4">
 
-                <h5 class="mb-3">Simulation Location</h5>
+            <div class="card-header">
+                <strong>Volcano Information</strong>
+            </div>
 
-                <div class="row g-3 mb-4">
+            <div class="card-body">
 
-                    <div class="col-md-4">
-                        <label for="latitude" class="form-label">
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+
+                        <label
+                            for="volcano_name"
+                            class="form-label"
+                        >
+                            Volcano Name
+                        </label>
+
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="volcano_name"
+                            name="volcano_name"
+                            value="Merapi"
+                            required
+                        >
+
+                    </div>
+
+                    <div class="col-md-3">
+
+                        <label
+                            for="latitude"
+                            class="form-label"
+                        >
                             Latitude
                         </label>
+
                         <input
                             type="number"
                             class="form-control"
                             id="latitude"
                             name="latitude"
-                            step="any"
                             value="-7.54"
+                            step="any"
                             required
                         >
+
                     </div>
 
-                    <div class="col-md-4">
-                        <label for="longitude" class="form-label">
+                    <div class="col-md-3">
+
+                        <label
+                            for="longitude"
+                            class="form-label"
+                        >
                             Longitude
                         </label>
+
                         <input
                             type="number"
                             class="form-control"
                             id="longitude"
                             name="longitude"
-                            step="any"
                             value="110.44"
-                            required
-                        >
-                    </div>
-
-                    <div class="col-md-4">
-                        <label for="altitude" class="form-label">
-                            Initial Altitude (m)
-                        </label>
-                        <input
-                            type="number"
-                            class="form-control"
-                            id="altitude"
-                            name="altitude"
                             step="any"
-                            value="1000"
-                            min="0"
                             required
                         >
+
                     </div>
 
                 </div>
 
-                <h5 class="mb-3">Eruption Parameters</h5>
-
-                <div class="row g-3 mb-4">
-
-                    <div class="col-md-6">
-                        <label for="eruption_height" class="form-label">
-                            Eruption Height (m)
-                        </label>
-                        <input
-                            type="number"
-                            class="form-control"
-                            id="eruption_height"
-                            name="eruption_height"
-                            step="any"
-                            min="0"
-                            required
-                        >
-                    </div>
-
-                    <div class="col-md-6">
-                        <label for="eruption_duration" class="form-label">
-                            Eruption Duration (s)
-                        </label>
-                        <input
-                            type="number"
-                            class="form-control"
-                            id="eruption_duration"
-                            name="eruption_duration"
-                            step="1"
-                            min="1"
-                            required
-                        >
-                    </div>
-
-                </div>
-
-                <h5 class="mb-3">Simulation Parameters</h5>
-
-                <div class="row g-3 mb-4">
-
-                    <div class="col-md-4">
-                        <label for="duration" class="form-label">
-                            Simulation Duration (s)
-                        </label>
-                        <input
-                            type="number"
-                            class="form-control"
-                            id="duration"
-                            name="duration"
-                            value="3600"
-                            min="1"
-                            required
-                        >
-                    </div>
-
-                    <div class="col-md-4">
-                        <label for="dt" class="form-label">
-                            Time Step (s)
-                        </label>
-                        <input
-                            type="number"
-                            class="form-control"
-                            id="dt"
-                            name="dt"
-                            value="60"
-                            min="1"
-                            required
-                        >
-                    </div>
-
-                    <div class="col-md-4">
-                        <label for="time_index" class="form-label">
-                            Atmospheric Time Index
-                        </label>
-                        <input
-                            type="number"
-                            class="form-control"
-                            id="time_index"
-                            name="time_index"
-                            value="0"
-                            min="0"
-                            required
-                        >
-                    </div>
-
-                </div>
-
-                <div class="alert alert-info">
-                    Particle size distribution, particle density, and particle
-                    population are calculated automatically by the simulation
-                    engine.
-                </div>
-
-                <div class="d-flex justify-content-end">
-                    <button type="submit" class="btn btn-primary">
-                        Run Simulation
-                    </button>
-                </div>
-
-            </form>
+            </div>
 
         </div>
-    </div>
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header">
+                <strong>Meteorological Configuration</strong>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="start_date"
+                            class="form-label"
+                        >
+                            Start Date
+                        </label>
+
+                        <input
+                            type="date"
+                            class="form-control"
+                            id="start_date"
+                            name="start_date"
+                            value="2026-01-01"
+                            required
+                        >
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="start_time"
+                            class="form-label"
+                        >
+                            Start Time
+                        </label>
+
+                        <input
+                            type="time"
+                            class="form-control"
+                            id="start_time"
+                            name="start_time"
+                            value="00:00"
+                            required
+                        >
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="dataset"
+                            class="form-label"
+                        >
+                            Dataset
+                        </label>
+
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="dataset"
+                            name="dataset"
+                            value="era5_pressure_jan_2026"
+                            required
+                        >
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header">
+                <strong>Emission Source</strong>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="altitude"
+                            class="form-label"
+                        >
+                            Release Altitude
+                        </label>
+
+                        <div class="input-group">
+
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="altitude"
+                                name="altitude"
+                                value="2500"
+                                min="0"
+                                step="any"
+                                required
+                            >
+
+                            <span class="input-group-text">
+                                m
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="eruption_height"
+                            class="form-label"
+                        >
+                            Eruption Height
+                        </label>
+
+                        <div class="input-group">
+
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="eruption_height"
+                                name="eruption_height"
+                                value="5000"
+                                min="0"
+                                step="any"
+                                required
+                            >
+
+                            <span class="input-group-text">
+                                m
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="eruption_duration"
+                            class="form-label"
+                        >
+                            Eruption Duration
+                        </label>
+
+                        <div class="input-group">
+
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="eruption_duration"
+                                name="eruption_duration"
+                                value="3600"
+                                min="1"
+                                step="any"
+                                required
+                            >
+
+                            <span class="input-group-text">
+                                s
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header">
+                <strong>Particle Configuration</strong>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="particle_count"
+                            class="form-label"
+                        >
+                            Particle Count
+                        </label>
+
+                        <input
+                            type="number"
+                            class="form-control"
+                            id="particle_count"
+                            name="particle_count"
+                            value="1000"
+                            min="1"
+                            step="1"
+                            required
+                        >
+
+                        <div class="form-text">
+                            Number of virtual particle groups.
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="mean_radius"
+                            class="form-label"
+                        >
+                            Mean Radius
+                        </label>
+
+                        <div class="input-group">
+
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="mean_radius"
+                                name="mean_radius"
+                                value="50"
+                                min="0"
+                                step="any"
+                                required
+                            >
+
+                            <span class="input-group-text">
+                                µm
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="sigma"
+                            class="form-label"
+                        >
+                            Sigma
+                        </label>
+
+                        <input
+                            type="number"
+                            class="form-control"
+                            id="sigma"
+                            name="sigma"
+                            value="1.5"
+                            min="0"
+                            step="any"
+                            required
+                        >
+
+                        <div class="form-text">
+                            Particle size distribution parameter.
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header">
+                <strong>Simulation Configuration</strong>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+
+                        <label
+                            for="duration"
+                            class="form-label"
+                        >
+                            Simulation Duration
+                        </label>
+
+                        <div class="input-group">
+
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="duration"
+                                name="duration"
+                                value="3600"
+                                min="1"
+                                step="1"
+                                required
+                            >
+
+                            <span class="input-group-text">
+                                seconds
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <label
+                            for="timestep"
+                            class="form-label"
+                        >
+                            Time Step
+                        </label>
+
+                        <div class="input-group">
+
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="timestep"
+                                name="timestep"
+                                value="60"
+                                min="1"
+                                step="1"
+                                required
+                            >
+
+                            <span class="input-group-text">
+                                seconds
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header">
+                <strong>Simulation Summary</strong>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-3">
+
+                        <div class="border rounded p-3 h-100">
+
+                            <div class="text-muted small">
+                                Volcano
+                            </div>
+
+                            <div
+                                class="fw-bold"
+                                id="summary-volcano"
+                            >
+                                Merapi
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-3">
+
+                        <div class="border rounded p-3 h-100">
+
+                            <div class="text-muted small">
+                                Location
+                            </div>
+
+                            <div
+                                class="fw-bold"
+                                id="summary-location"
+                            >
+                                -7.54, 110.44
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-3">
+
+                        <div class="border rounded p-3 h-100">
+
+                            <div class="text-muted small">
+                                Duration
+                            </div>
+
+                            <div
+                                class="fw-bold"
+                                id="summary-duration"
+                            >
+                                3600 s
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-3">
+
+                        <div class="border rounded p-3 h-100">
+
+                            <div class="text-muted small">
+                                Time Step
+                            </div>
+
+                            <div
+                                class="fw-bold"
+                                id="summary-timestep"
+                            >
+                                60 s
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mb-4">
+
+            <a
+                href="/"
+                class="btn btn-outline-secondary"
+            >
+                Cancel
+            </a>
+
+            <button
+                type="submit"
+                class="btn btn-primary"
+            >
+                Run Simulation
+            </button>
+
+        </div>
+
+    </form>
 
 </div>
+
+<script>
+
+const volcanoName =
+    document.getElementById(
+        "volcano_name"
+    );
+
+const latitude =
+    document.getElementById(
+        "latitude"
+    );
+
+const longitude =
+    document.getElementById(
+        "longitude"
+    );
+
+const duration =
+    document.getElementById(
+        "duration"
+    );
+
+const timestep =
+    document.getElementById(
+        "timestep"
+    );
+
+const summaryVolcano =
+    document.getElementById(
+        "summary-volcano"
+    );
+
+const summaryLocation =
+    document.getElementById(
+        "summary-location"
+    );
+
+const summaryDuration =
+    document.getElementById(
+        "summary-duration"
+    );
+
+const summaryTimestep =
+    document.getElementById(
+        "summary-timestep"
+    );
+
+function updateSummary() {
+
+    summaryVolcano.textContent =
+        volcanoName.value || "-";
+
+    summaryLocation.textContent =
+        (latitude.value || "-") +
+        ", " +
+        (longitude.value || "-");
+
+    summaryDuration.textContent =
+        (duration.value || "-") +
+        " s";
+
+    summaryTimestep.textContent =
+        (timestep.value || "-") +
+        " s";
+}
+
+volcanoName.addEventListener(
+    "input",
+    updateSummary
+);
+
+latitude.addEventListener(
+    "input",
+    updateSummary
+);
+
+longitude.addEventListener(
+    "input",
+    updateSummary
+);
+
+duration.addEventListener(
+    "input",
+    updateSummary
+);
+
+timestep.addEventListener(
+    "input",
+    updateSummary
+);
+
+updateSummary();
+
+</script>
 
 {% endblock %}
