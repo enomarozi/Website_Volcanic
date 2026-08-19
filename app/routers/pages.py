@@ -84,9 +84,8 @@ async def run_simulation(
 
     time_information = meteorology_service.time_information()
     meteorology_times = time_information.get("times", [])
-
     if config.time_index < 0 or config.time_index >= len(meteorology_times):
-        raise ValueError(f"Invalid meteorological time index: {config.time_index}")
+        raise ValueError(f"Invalid meteorological time_index: {config.time_index}")
 
     atmospheric = meteorology_service.atmospheric_profile(
         latitude=config.latitude,
@@ -120,13 +119,15 @@ async def run_simulation(
         particles=particles,
         duration=config.duration,
         dt=config.timestep,
-        initial_time_index=config.time_index
+        start_time_index=config.time_index
     )
 
     trajectory_geojson = geojson_service.trajectory_to_feature_collection(dispersion_result)
     point_geojson = geojson_service.trajectory_points_to_feature_collection(dispersion_result)
-
     total_particles = dispersion_result["total_particles"]
+
+    selected_time = meteorology_times[config.time_index]
+    selected_elapsed = time_information.get("elapsed_seconds", [])[config.time_index]
 
     simulation = {
         "config": {
@@ -154,7 +155,8 @@ async def run_simulation(
         "start_time": config.start_time,
         "dataset": config.dataset,
         "time_index": config.time_index,
-        "meteorology_time": str(meteorology_times[config.time_index]),
+        "meteorology_time": str(selected_time),
+        "meteorology_elapsed_seconds": float(selected_elapsed),
         "duration": config.duration,
         "dt": config.timestep,
         "grid": grid,

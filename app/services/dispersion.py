@@ -3,7 +3,7 @@ class DispersionService:
         self.particle_simulation = particle_simulation
         self.meteorology = meteorology
 
-    def simulate(self, particles, duration, dt, initial_time_index=0):
+    def simulate(self, particles, duration, dt, start_time_index=0):
         if not particles:
             raise ValueError("Particles cannot be empty.")
         if duration <= 0:
@@ -18,23 +18,23 @@ class DispersionService:
         meteorology_count = len(meteorology_times)
 
         if meteorology_count == 0:
-            raise ValueError("Meteorological time data is empty.")
-        if initial_time_index < 0 or initial_time_index >= meteorology_count:
-            raise ValueError(f"Invalid meteorological time index: {initial_time_index}")
+            raise ValueError("Meteorological time information is empty.")
 
-        initial_elapsed = float(meteorology_times[initial_time_index])
+        if start_time_index < 0 or start_time_index >= meteorology_count:
+            raise ValueError(f"Invalid start_time_index: {start_time_index}")
+
         steps = int(duration / dt)
         trajectories = []
 
-        for particle_number, particle in enumerate(particles, start=1):
+        for particle in particles:
             current_latitude = float(particle["latitude"])
             current_longitude = float(particle["longitude"])
             current_altitude = float(particle["altitude"])
             settling_velocity = float(particle.get("settling_velocity", 0.0))
-            particle_id = particle.get("id", particle_number)
+            particle_id = particle.get("id", len(trajectories) + 1)
             particle_class = particle.get("class", "unknown")
-            radius = float(particle.get("radius", 0.0))
-            mass = float(particle.get("mass", 0.0))
+            radius = particle.get("radius", 0.0)
+            mass = particle.get("mass", 0.0)
 
             trajectory = [{
                 "time": 0.0,
@@ -44,18 +44,23 @@ class DispersionService:
                 "u": 0.0,
                 "v": 0.0,
                 "vertical": 0.0,
-                "time_index": initial_time_index
+                "time_index": start_time_index
             }]
 
             for step in range(1, steps + 1):
                 elapsed_time = step * dt
-                meteorological_elapsed = initial_elapsed + elapsed_time
-                time_index = self.meteorology.time_index_at_elapsed(elapsed_seconds=meteorological_elapsed)
+                time_index = self.meteorology.time_index_at_elapsed(
+                    elapsed_seconds=meteorology_times[start_time_index] + elapsed_time
+                )
 
-                if time_index >= meteorology_count:
-                    time_index = meteorology_count - 1
-
-                state = self.particle_simulation.step(latitude=current_latitude, longitude=current_longitude, altitude=current_altitude, dt=dt, time_index=time_index, settling_velocity=settling_velocity)
+                state = self.particle_simulation.step(
+                    latitude=current_latitude,
+                    longitude=current_longitude,
+                    altitude=current_altitude,
+                    dt=dt,
+                    time_index=time_index,
+                    settling_velocity=settling_velocity
+                )
 
                 current_latitude = float(state["latitude"])
                 current_longitude = float(state["longitude"])
@@ -87,8 +92,7 @@ class DispersionService:
             "duration": duration,
             "dt": dt,
             "steps": steps,
-            "initial_time_index": initial_time_index,
-            "initial_meteorology_time": str(time_information["times"][initial_time_index]),
+            "start_time_index": start_time_index,
             "meteorology": {
                 "time_count": meteorology_count,
                 "interval_seconds": time_information.get("interval_seconds"),

@@ -6,627 +6,224 @@
 
 <div class="container-fluid py-4">
 
-    <!-- ========================================================= -->
-    <!-- HEADER -->
-    <!-- ========================================================= -->
-
     <div class="d-flex justify-content-between align-items-center mb-4">
-
-        <h4 class="mb-0">
-            Simulation Result
-        </h4>
-
-        <a
-            href="/simulations/create"
-            class="btn btn-primary"
-        >
-            New Simulation
-        </a>
-
+        <div>
+            <h4 class="mb-1">Simulation Result</h4>
+            <p class="text-muted mb-0">Volcanic ash dispersion simulation</p>
+        </div>
+        <a href="/simulations/create" class="btn btn-primary">New Simulation</a>
     </div>
 
-
-    <!-- ========================================================= -->
-    <!-- SIMULATION PARAMETERS -->
-    <!-- ========================================================= -->
-
     <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-            <strong>Simulation Parameters</strong>
-        </div>
-
+        <div class="card-header"><strong>Simulation Parameters</strong></div>
         <div class="card-body">
-
             <dl class="row mb-0">
+                <dt class="col-sm-4">Volcano</dt>
+                <dd class="col-sm-8">{{ simulation.volcano_name }}</dd>
 
-                <dt class="col-sm-4">
-                    Volcano
-                </dt>
+                <dt class="col-sm-4">Latitude</dt>
+                <dd class="col-sm-8">{{ "%.6f"|format(simulation.latitude) }}</dd>
 
-                <dd class="col-sm-8">
-                    {{ simulation.volcano_name }}
-                </dd>
+                <dt class="col-sm-4">Longitude</dt>
+                <dd class="col-sm-8">{{ "%.6f"|format(simulation.longitude) }}</dd>
 
+                <dt class="col-sm-4">Release Altitude</dt>
+                <dd class="col-sm-8">{{ "%.2f"|format(simulation.altitude) }} m</dd>
 
-                <dt class="col-sm-4">
-                    Latitude
-                </dt>
+                <dt class="col-sm-4">Start Date</dt>
+                <dd class="col-sm-8">{{ simulation.start_date }}</dd>
 
-                <dd class="col-sm-8">
-                    {{ "%.6f"|format(simulation.latitude) }}
-                </dd>
+                <dt class="col-sm-4">Start Time</dt>
+                <dd class="col-sm-8">{{ simulation.start_time }}</dd>
 
+                <dt class="col-sm-4">Dataset</dt>
+                <dd class="col-sm-8">{{ simulation.dataset }}</dd>
 
-                <dt class="col-sm-4">
-                    Longitude
-                </dt>
+                <dt class="col-sm-4">Meteorological Time Index</dt>
+                <dd class="col-sm-8"><strong>{{ simulation.time_index }}</strong></dd>
 
-                <dd class="col-sm-8">
-                    {{ "%.6f"|format(simulation.longitude) }}
-                </dd>
+                <dt class="col-sm-4">Meteorological Time</dt>
+                <dd class="col-sm-8"><strong>{{ simulation.meteorology_time }}</strong></dd>
 
+                <dt class="col-sm-4">Dataset Elapsed Time</dt>
+                <dd class="col-sm-8">{{ "%.0f"|format(simulation.meteorology_elapsed_seconds) }} seconds</dd>
 
-                <dt class="col-sm-4">
-                    Release Altitude
-                </dt>
+                <dt class="col-sm-4">Duration</dt>
+                <dd class="col-sm-8">{{ simulation.duration }} seconds</dd>
 
-                <dd class="col-sm-8">
-                    {{ "%.2f"|format(simulation.altitude) }}
-                    m
-                </dd>
-
-
-                <dt class="col-sm-4">
-                    Start Date
-                </dt>
-
-                <dd class="col-sm-8">
-                    {{ simulation.start_date }}
-                </dd>
-
-
-                <dt class="col-sm-4">
-                    Start Time
-                </dt>
-
-                <dd class="col-sm-8">
-                    {{ simulation.start_time }}
-                </dd>
-
-
-                <dt class="col-sm-4">
-                    Dataset
-                </dt>
-
-                <dd class="col-sm-8">
-                    {{ simulation.dataset }}
-                </dd>
-
-
-                <dt class="col-sm-4">
-                    Duration
-                </dt>
-
-                <dd class="col-sm-8">
-                    {{ simulation.duration }}
-                    seconds
-                </dd>
-
-
-                <dt class="col-sm-4">
-                    Time Step
-                </dt>
-
-                <dd class="col-sm-8">
-                    {{ simulation.dt }}
-                    seconds
-                </dd>
-
+                <dt class="col-sm-4">Time Step</dt>
+                <dd class="col-sm-8">{{ simulation.dt }} seconds</dd>
             </dl>
-
         </div>
-
     </div>
 
-
-    <!-- ========================================================= -->
-    <!-- MAP -->
-    <!-- ========================================================= -->
-
     <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-
-            <strong>
-                Volcanic Ash Dispersion Map
-            </strong>
-
-        </div>
-
+        <div class="card-header"><strong>Volcanic Ash Dispersion Map</strong></div>
         <div class="card-body p-0">
-
-            <div
-                id="dispersion-map"
-                style="
-                    width:100%;
-                    height:650px;
-                "
-            ></div>
-
+            <div id="dispersion-map" style="width:100%;height:650px;"></div>
         </div>
-
     </div>
 
-
-    <!-- ========================================================= -->
-    <!-- MAP CONTROLS -->
-    <!-- ========================================================= -->
-
     <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-
-            <strong>
-                Map Controls
-            </strong>
-
-        </div>
-
+        <div class="card-header"><strong>Map Controls</strong></div>
         <div class="card-body">
-
             <div class="row g-4">
 
-                <!-- TIME -->
+                <div class="col-md-8">
+                    <label for="time-slider" class="form-label">Simulation Time</label>
 
-                <div class="col-md-6">
+                    <input type="range" class="form-range" id="time-slider" min="0" max="{{ simulation.duration }}" step="{{ simulation.dt }}" value="0">
 
-                    <label
-                        for="time-slider"
-                        class="form-label"
-                    >
-                        Simulation Time
-                    </label>
-
-                    <input
-                        type="range"
-                        class="form-range"
-                        id="time-slider"
-                        min="0"
-                        max="{{ simulation.duration }}"
-                        step="{{ simulation.dt }}"
-                        value="0"
-                    >
-
-                    <div
-                        class="d-flex justify-content-between"
-                    >
-
-                        <span>
-                            0 s
-                        </span>
-
-                        <strong id="current-time">
-                            0 s
-                        </strong>
-
-                        <span>
-                            {{ simulation.duration }} s
-                        </span>
-
+                    <div class="d-flex justify-content-between">
+                        <span>0 s</span>
+                        <strong id="current-time">0 s</strong>
+                        <span>{{ simulation.duration }} s</span>
                     </div>
-
                 </div>
 
+                <div class="col-md-4">
+                    <label for="particle-filter" class="form-label">Particle Class</label>
 
-                <!-- PARTICLE FILTER -->
+                    <select id="particle-filter" class="form-select">
+                        <option value="all">All Classes</option>
 
-                <div class="col-md-6">
-
-                    <label
-                        for="particle-filter"
-                        class="form-label"
-                    >
-                        Particle Class
-                    </label>
-
-                    <select
-                        id="particle-filter"
-                        class="form-select"
-                    >
-
-                        <option value="all">
-                            All Classes
-                        </option>
+                        {% set particle_classes = [] %}
 
                         {% for particle in simulation.particles.groups %}
-
-                        <option
-                            value="{{ particle.class }}"
-                        >
-                            {{ particle.class }}
-                        </option>
-
-                        {% endfor %}
-
-                    </select>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- ========================================================= -->
-    <!-- SIMULATION SUMMARY -->
-    <!-- ========================================================= -->
-
-    <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-
-            <strong>
-                Simulation Summary
-            </strong>
-
-        </div>
-
-        <div class="card-body">
-
-            <div class="row text-center g-3">
-
-
-                <!-- PARTICLE GROUPS -->
-
-                <div class="col-md-3">
-
-                    <div
-                        class="border rounded p-3 h-100"
-                    >
-
-                        <div class="text-muted small">
-                            Particle Groups
-                        </div>
-
-                        <div class="fs-4 fw-bold">
-
-                            {{
-                                "{:,}".format(
-                                    simulation.particle_count
-                                )
-                            }}
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <!-- TOTAL PARTICLES -->
-
-                <div class="col-md-3">
-
-                    <div
-                        class="border rounded p-3 h-100"
-                    >
-
-                        <div class="text-muted small">
-                            Virtual Particles
-                        </div>
-
-                        <div class="fs-4 fw-bold">
-
-                            {{
-                                "{:,}".format(
-                                    simulation.total_particles
-                                )
-                            }}
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <!-- DURATION -->
-
-                <div class="col-md-3">
-
-                    <div
-                        class="border rounded p-3 h-100"
-                    >
-
-                        <div class="text-muted small">
-                            Duration
-                        </div>
-
-                        <div class="fs-4 fw-bold">
-
-                            {{ simulation.duration }}
-                            s
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <!-- STEPS -->
-
-                <div class="col-md-3">
-
-                    <div
-                        class="border rounded p-3 h-100"
-                    >
-
-                        <div class="text-muted small">
-                            Simulation Steps
-                        </div>
-
-                        <div class="fs-4 fw-bold">
-
-                            {{ simulation.steps }}
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- ========================================================= -->
-    <!-- METEOROLOGY -->
-    <!-- ========================================================= -->
-
-    <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-
-            <strong>
-                Meteorological Time
-            </strong>
-
-        </div>
-
-        <div class="card-body">
-
-            <div class="row text-center g-3">
-
-
-                <!-- TIME COUNT -->
-
-                <div class="col-md-4">
-
-                    <div
-                        class="border rounded p-3 h-100"
-                    >
-
-                        <div class="text-muted small">
-                            Time Steps
-                        </div>
-
-                        <div class="fs-4 fw-bold">
-
-                            {{ simulation.meteorology.time_count }}
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <!-- INTERVAL -->
-
-                <div class="col-md-4">
-
-                    <div
-                        class="border rounded p-3 h-100"
-                    >
-
-                        <div class="text-muted small">
-                            Interval
-                        </div>
-
-                        <div class="fs-4 fw-bold">
-
-                            {% if
-                                simulation.meteorology.interval_hours
-                                is not none
-                            %}
-
-                                {{
-                                    "%.2f"|format(
-                                        simulation
-                                        .meteorology
-                                        .interval_hours
-                                    )
-                                }}
-                                hours
-
-                            {% else %}
-
-                                Single time
-
+                            {% if particle.class not in particle_classes %}
+                                {% set _ = particle_classes.append(particle.class) %}
+                                <option value="{{ particle.class }}">{{ particle.class }}</option>
                             {% endif %}
-
-                        </div>
-
-                    </div>
-
+                        {% endfor %}
+                    </select>
                 </div>
 
+            </div>
+        </div>
+    </div>
 
-                <!-- DATASET -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header"><strong>Simulation Summary</strong></div>
+        <div class="card-body">
+            <div class="row text-center g-3">
 
-                <div class="col-md-4">
-
-                    <div
-                        class="border rounded p-3 h-100"
-                    >
-
-                        <div class="text-muted small">
-                            Dataset
-                        </div>
-
-                        <div class="fs-5 fw-bold">
-
-                            {{ simulation.dataset }}
-
-                        </div>
-
+                <div class="col-md-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">Particle Groups</div>
+                        <div class="fs-4 fw-bold">{{ "{:,}".format(simulation.particle_count) }}</div>
                     </div>
+                </div>
 
+                <div class="col-md-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">Virtual Particles</div>
+                        <div class="fs-4 fw-bold">{{ "{:,}".format(simulation.total_particles) }}</div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">Duration</div>
+                        <div class="fs-4 fw-bold">{{ simulation.duration }} s</div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">Simulation Steps</div>
+                        <div class="fs-4 fw-bold">{{ simulation.steps }}</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header"><strong>Meteorological Time</strong></div>
+        <div class="card-body">
+
+            <div class="row text-center g-3">
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">Selected Index</div>
+                        <div class="fs-4 fw-bold">{{ simulation.time_index }}</div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">Time Count</div>
+                        <div class="fs-4 fw-bold">{{ simulation.meteorology.time_count }}</div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">Interval</div>
+                        <div class="fs-4 fw-bold">
+                            {% if simulation.meteorology.interval_hours is not none %}
+                                {{ "%.2f"|format(simulation.meteorology.interval_hours) }} h
+                            {% else %}
+                                Single time
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">Selected Time</div>
+                        <div class="fs-6 fw-bold">{{ simulation.selected_meteorology_time }}</div>
+                    </div>
                 </div>
 
             </div>
 
         </div>
-
     </div>
 
-
-    <!-- ========================================================= -->
-    <!-- NEAREST ERA5 GRID -->
-    <!-- ========================================================= -->
-
     <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-
-            <strong>
-                Nearest ERA5 Grid
-            </strong>
-
-        </div>
-
+        <div class="card-header"><strong>Nearest ERA5 Grid</strong></div>
         <div class="card-body">
 
             <dl class="row mb-0">
 
+                <dt class="col-sm-4">Requested Latitude</dt>
+                <dd class="col-sm-8">{{ "%.6f"|format(simulation.latitude) }}</dd>
 
-                <dt class="col-sm-4">
-                    Requested Latitude
-                </dt>
+                <dt class="col-sm-4">Requested Longitude</dt>
+                <dd class="col-sm-8">{{ "%.6f"|format(simulation.longitude) }}</dd>
 
-                <dd class="col-sm-8">
+                <dt class="col-sm-4">Grid Latitude</dt>
+                <dd class="col-sm-8">{{ simulation.grid.latitude }}</dd>
 
-                    {{ "%.6f"|format(
-                        simulation.latitude
-                    ) }}
-
-                </dd>
-
-
-                <dt class="col-sm-4">
-                    Requested Longitude
-                </dt>
-
-                <dd class="col-sm-8">
-
-                    {{ "%.6f"|format(
-                        simulation.longitude
-                    ) }}
-
-                </dd>
-
-
-                <dt class="col-sm-4">
-                    Grid Latitude
-                </dt>
-
-                <dd class="col-sm-8">
-
-                    {{ simulation.grid.latitude }}
-
-                </dd>
-
-
-                <dt class="col-sm-4">
-                    Grid Longitude
-                </dt>
-
-                <dd class="col-sm-8">
-
-                    {{ simulation.grid.longitude }}
-
-                </dd>
+                <dt class="col-sm-4">Grid Longitude</dt>
+                <dd class="col-sm-8">{{ simulation.grid.longitude }}</dd>
 
             </dl>
 
         </div>
-
     </div>
 
-
-    <!-- ========================================================= -->
-    <!-- ATMOSPHERIC PROFILE -->
-    <!-- ========================================================= -->
-
     <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-
-            <strong>
-                Atmospheric Profile
-            </strong>
-
-        </div>
-
+        <div class="card-header"><strong>Atmospheric Profile</strong></div>
         <div class="card-body p-0">
 
             <div class="table-responsive">
-
-                <table
-                    class="table table-striped table-hover mb-0"
-                >
+                <table class="table table-striped table-hover mb-0">
 
                     <thead>
-
                         <tr>
-
-                            <th>
-                                Pressure
-                            </th>
-
-                            <th>
-                                Altitude
-                            </th>
-
-                            <th>
-                                U
-                            </th>
-
-                            <th>
-                                V
-                            </th>
-
-                            <th>
-                                Temperature
-                            </th>
-
-                            <th>
-                                Potential Temperature
-                            </th>
-
-                            <th>
-                                Brunt-Väisälä
-                            </th>
-
+                            <th>Pressure</th>
+                            <th>Altitude</th>
+                            <th>U</th>
+                            <th>V</th>
+                            <th>Temperature</th>
+                            <th>Potential Temperature</th>
+                            <th>Brunt-Väisälä</th>
                         </tr>
-
                     </thead>
 
                     <tbody>
@@ -634,86 +231,13 @@
                         {% for level in simulation.atmospheric.profile %}
 
                         <tr>
-
-                            <td>
-
-                                {{ level.pressure_level }}
-                                hPa
-
-                            </td>
-
-
-                            <td>
-
-                                {{
-                                    "%.2f"|format(
-                                        level.altitude
-                                    )
-                                }}
-                                m
-
-                            </td>
-
-
-                            <td>
-
-                                {{
-                                    "%.2f"|format(
-                                        level.u
-                                    )
-                                }}
-                                m/s
-
-                            </td>
-
-
-                            <td>
-
-                                {{
-                                    "%.2f"|format(
-                                        level.v
-                                    )
-                                }}
-                                m/s
-
-                            </td>
-
-
-                            <td>
-
-                                {{
-                                    "%.2f"|format(
-                                        level.temperature
-                                    )
-                                }}
-                                K
-
-                            </td>
-
-
-                            <td>
-
-                                {{
-                                    "%.2f"|format(
-                                        level.potential_temperature
-                                    )
-                                }}
-                                K
-
-                            </td>
-
-
-                            <td>
-
-                                {{
-                                    "%.5f"|format(
-                                        level.brunt_vaisala
-                                    )
-                                }}
-                                s⁻¹
-
-                            </td>
-
+                            <td>{{ level.pressure_level }} hPa</td>
+                            <td>{{ "%.2f"|format(level.altitude) }} m</td>
+                            <td>{{ "%.2f"|format(level.u) }} m/s</td>
+                            <td>{{ "%.2f"|format(level.v) }} m/s</td>
+                            <td>{{ "%.2f"|format(level.temperature) }} K</td>
+                            <td>{{ "%.2f"|format(level.potential_temperature) }} K</td>
+                            <td>{{ "%.5f"|format(level.brunt_vaisala) }} s⁻¹</td>
                         </tr>
 
                         {% endfor %}
@@ -721,123 +245,41 @@
                     </tbody>
 
                 </table>
-
             </div>
 
         </div>
-
     </div>
 
-
-    <!-- ========================================================= -->
-    <!-- PARTICLES -->
-    <!-- ========================================================= -->
-
     <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-
-            <strong>
-                Virtual Particle Distribution
-            </strong>
-
-        </div>
-
+        <div class="card-header"><strong>Virtual Particle Distribution</strong></div>
         <div class="card-body">
 
             <div class="mb-3">
-
                 Total Virtual Particles:
-
-                <strong>
-
-                    {{
-                        "{:,}".format(
-                            simulation.particles.total
-                        )
-                    }}
-
-                </strong>
-
+                <strong>{{ "{:,}".format(simulation.particles.total) }}</strong>
             </div>
 
-
             <div class="table-responsive">
-
-                <table
-                    class="table table-bordered table-hover"
-                >
+                <table class="table table-bordered table-hover">
 
                     <thead>
-
                         <tr>
-
-                            <th>
-                                Class
-                            </th>
-
-                            <th>
-                                Radius
-                            </th>
-
-                            <th>
-                                Mass
-                            </th>
-
-                            <th>
-                                Settling Velocity
-                            </th>
-
+                            <th>Class</th>
+                            <th>Radius</th>
+                            <th>Mass</th>
+                            <th>Settling Velocity</th>
                         </tr>
-
                     </thead>
 
                     <tbody>
 
-                        {% for particle in
-                            simulation.particles.groups
-                        %}
+                        {% for particle in simulation.particles.groups %}
 
                         <tr>
-
-                            <td>
-                                {{ particle.class }}
-                            </td>
-
-                            <td>
-
-                                {{
-                                    "%.2f"|format(
-                                        particle.radius
-                                        * 1000000
-                                    )
-                                }}
-                                µm
-
-                            </td>
-
-                            <td>
-
-                                {{
-                                    "%.6e"|format(
-                                        particle.mass
-                                    )
-                                }}
-                                kg
-
-                            </td>
-
-                            <td>
-
-                                {{
-                                    "%.8f"|format(
-                                        particle.settling_velocity
-                                    )
-                                }}
-                                m/s
-
-                            </td>
-
+                            <td>{{ particle.class }}</td>
+                            <td>{{ "%.2f"|format(particle.radius * 1000000) }} µm</td>
+                            <td>{{ "%.6e"|format(particle.mass) }} kg</td>
+                            <td>{{ "%.8f"|format(particle.settling_velocity) }} m/s</td>
                         </tr>
 
                         {% endfor %}
@@ -845,990 +287,261 @@
                     </tbody>
 
                 </table>
-
             </div>
 
         </div>
-
     </div>
 
-
-    <!-- ========================================================= -->
-    <!-- EMISSION SOURCE -->
-    <!-- ========================================================= -->
-
     <div class="card shadow-sm mb-4">
-
-        <div class="card-header">
-
-            <strong>
-                Emission Source
-            </strong>
-
-        </div>
-
+        <div class="card-header"><strong>Emission Source</strong></div>
         <div class="card-body">
 
             <dl class="row mb-0">
 
+                <dt class="col-sm-6">Eruption Height</dt>
+                <dd class="col-sm-6">{{ simulation.eruption.eruption_height }} m</dd>
 
-                <dt class="col-sm-6">
-                    Eruption Height
-                </dt>
+                <dt class="col-sm-6">Eruption Duration</dt>
+                <dd class="col-sm-6">{{ simulation.eruption.eruption_duration }} s</dd>
 
-                <dd class="col-sm-6">
+                <dt class="col-sm-6">Mean Wind Speed</dt>
+                <dd class="col-sm-6">{{ "%.4f"|format(simulation.eruption.mean_wind_speed) }} m/s</dd>
 
-                    {{
-                        simulation.eruption.eruption_height
-                    }}
-                    m
+                <dt class="col-sm-6">Mean Potential Temperature</dt>
+                <dd class="col-sm-6">{{ "%.4f"|format(simulation.eruption.theta_mean) }} K</dd>
 
-                </dd>
+                <dt class="col-sm-6">dθ/dz</dt>
+                <dd class="col-sm-6">{{ "%.6e"|format(simulation.eruption.dtheta_dz) }} K/m</dd>
 
+                <dt class="col-sm-6">Brunt-Väisälä Frequency</dt>
+                <dd class="col-sm-6">{{ "%.6e"|format(simulation.eruption.brunt_vaisala) }} s⁻¹</dd>
 
-                <dt class="col-sm-6">
-                    Eruption Duration
-                </dt>
+                <dt class="col-sm-6">MER</dt>
+                <dd class="col-sm-6">{{ "%.6e"|format(simulation.eruption.mer) }} kg/s</dd>
 
-                <dd class="col-sm-6">
-
-                    {{
-                        simulation.eruption.eruption_duration
-                    }}
-                    s
-
-                </dd>
-
-
-                <dt class="col-sm-6">
-                    Mean Wind Speed
-                </dt>
-
-                <dd class="col-sm-6">
-
-                    {{
-                        "%.4f"|format(
-                            simulation.eruption.mean_wind_speed
-                        )
-                    }}
-                    m/s
-
-                </dd>
-
-
-                <dt class="col-sm-6">
-                    Mean Potential Temperature
-                </dt>
-
-                <dd class="col-sm-6">
-
-                    {{
-                        "%.4f"|format(
-                            simulation.eruption.theta_mean
-                        )
-                    }}
-                    K
-
-                </dd>
-
-
-                <dt class="col-sm-6">
-                    dθ/dz
-                </dt>
-
-                <dd class="col-sm-6">
-
-                    {{
-                        "%.6e"|format(
-                            simulation.eruption.dtheta_dz
-                        )
-                    }}
-                    K/m
-
-                </dd>
-
-
-                <dt class="col-sm-6">
-                    Brunt-Väisälä Frequency
-                </dt>
-
-                <dd class="col-sm-6">
-
-                    {{
-                        "%.6e"|format(
-                            simulation.eruption.brunt_vaisala
-                        )
-                    }}
-                    s⁻¹
-
-                </dd>
-
-
-                <dt class="col-sm-6">
-                    MER
-                </dt>
-
-                <dd class="col-sm-6">
-
-                    {{
-                        "%.6e"|format(
-                            simulation.eruption.mer
-                        )
-                    }}
-                    kg/s
-
-                </dd>
-
-
-                <dt class="col-sm-6">
-                    Total Ash Mass
-                </dt>
-
-                <dd class="col-sm-6">
-
-                    {{
-                        "%.6e"|format(
-                            simulation.eruption.total_mass
-                        )
-                    }}
-                    kg
-
-                </dd>
+                <dt class="col-sm-6">Total Ash Mass</dt>
+                <dd class="col-sm-6">{{ "%.6e"|format(simulation.eruption.total_mass) }} kg</dd>
 
             </dl>
 
         </div>
-
     </div>
 
 </div>
 
-
-<!-- ============================================================= -->
-<!-- ARCGIS CSS -->
-<!-- ============================================================= -->
-
-<link
-    rel="stylesheet"
-    href="https://js.arcgis.com/4.34/esri/themes/light/main.css"
->
-
-
-<!-- ============================================================= -->
-<!-- ARCGIS JAVASCRIPT -->
-<!-- ============================================================= -->
+<link rel="stylesheet" href="https://js.arcgis.com/4.34/esri/themes/light/main.css">
 
 <script type="module">
 
-import Map from
-    "https://js.arcgis.com/4.34/@arcgis/core/Map.js";
-
-import MapView from
-    "https://js.arcgis.com/4.34/@arcgis/core/views/MapView.js";
-
-import GraphicsLayer from
-    "https://js.arcgis.com/4.34/@arcgis/core/layers/GraphicsLayer.js";
-
-import Graphic from
-    "https://js.arcgis.com/4.34/@arcgis/core/Graphic.js";
-
-import Point from
-    "https://js.arcgis.com/4.34/@arcgis/core/geometry/Point.js";
-
-import Polyline from
-    "https://js.arcgis.com/4.34/@arcgis/core/geometry/Polyline.js";
-
-import SimpleMarkerSymbol from
-    "https://js.arcgis.com/4.34/@arcgis/core/symbols/SimpleMarkerSymbol.js";
-
-import SimpleLineSymbol from
-    "https://js.arcgis.com/4.34/@arcgis/core/symbols/SimpleLineSymbol.js";
-
-import PopupTemplate from
-    "https://js.arcgis.com/4.34/@arcgis/core/PopupTemplate.js";
-
-
-/* ============================================================= */
-/* DATA FROM FASTAPI */
-/* ============================================================= */
-
-const trajectoryData =
-    {{ simulation.geojson.trajectory | tojson }};
-
-const pointData =
-    {{ simulation.geojson.points | tojson }};
-
-
-/* ============================================================= */
-/* SOURCE COORDINATES */
-/* ============================================================= */
-
-const sourceLatitude =
-    Number({{ simulation.latitude }});
-
-const sourceLongitude =
-    Number({{ simulation.longitude }});
-
-const simulationDuration =
-    Number({{ simulation.duration }});
-
-const simulationDt =
-    Number({{ simulation.dt }});
-
-
-/* ============================================================= */
-/* DEBUG */
-/* ============================================================= */
-
-console.log(
-    "Source Latitude:",
-    sourceLatitude
-);
-
-console.log(
-    "Source Longitude:",
-    sourceLongitude
-);
-
-console.log(
-    "Trajectory GeoJSON:",
-    trajectoryData
-);
-
-console.log(
-    "Point GeoJSON:",
-    pointData
-);
-
-
-/* ============================================================= */
-/* MAP */
-/* ============================================================= */
-
-const map =
-    new Map({
-        basemap: "topo-vector"
-    });
-
-
-/* ============================================================= */
-/* MAP VIEW */
-/* ============================================================= */
-
-const view =
-    new MapView({
-
-        container:
-            "dispersion-map",
-
-        map:
-            map,
-
-        center: [
-            sourceLongitude,
-            sourceLatitude
-        ],
-
-        zoom:
-            8
-
-    });
-
-
-/* ============================================================= */
-/* LAYERS */
-/* ============================================================= */
-
-const trajectoryLayer =
-    new GraphicsLayer();
-
-const particleLayer =
-    new GraphicsLayer();
-
-const sourceLayer =
-    new GraphicsLayer();
-
-
-map.addMany([
-
-    trajectoryLayer,
-
-    particleLayer,
-
-    sourceLayer
-
-]);
-
-
-/* ============================================================= */
-/* VOLCANO SOURCE */
-/* ============================================================= */
-
-const sourceGraphic =
-    new Graphic({
-
-        geometry:
-            new Point({
-
-                longitude:
-                    sourceLongitude,
-
-                latitude:
-                    sourceLatitude,
-
-                spatialReference: {
-                    wkid: 4326
-                }
-
-            }),
-
-        symbol:
-            new SimpleMarkerSymbol({
-
-                style:
-                    "circle",
-
-                size:
-                    16,
-
-                color: [
-                    220,
-                    53,
-                    69
-                ],
-
-                outline: {
-
-                    color: [
-                        255,
-                        255,
-                        255
-                    ],
-
-                    width:
-                        2
-
-                }
-
-            }),
-
-        attributes: {
-
-            latitude:
-                sourceLatitude,
-
-            longitude:
-                sourceLongitude
-
-        },
-
-        popupTemplate:
-            new PopupTemplate({
-
-                title:
-                    "Volcano Source",
-
-                content:
-                    [
-
-                        {
-
-                            type:
-                                "fields",
-
-                            fieldInfos:
-                                [
-
-                                    {
-
-                                        fieldName:
-                                            "latitude",
-
-                                        label:
-                                            "Latitude"
-
-                                    },
-
-                                    {
-
-                                        fieldName:
-                                            "longitude",
-
-                                        label:
-                                            "Longitude"
-
-                                    }
-
-                                ]
-
-                        }
-
-                    ]
-
-            })
-
-    });
-
-
-sourceLayer.add(
-    sourceGraphic
-);
-
-
-/* ============================================================= */
-/* TRAJECTORY */
-/* ============================================================= */
+import Map from "https://js.arcgis.com/4.34/@arcgis/core/Map.js";
+import MapView from "https://js.arcgis.com/4.34/@arcgis/core/views/MapView.js";
+import GraphicsLayer from "https://js.arcgis.com/4.34/@arcgis/core/layers/GraphicsLayer.js";
+import Graphic from "https://js.arcgis.com/4.34/@arcgis/core/Graphic.js";
+import Point from "https://js.arcgis.com/4.34/@arcgis/core/geometry/Point.js";
+import Polyline from "https://js.arcgis.com/4.34/@arcgis/core/geometry/Polyline.js";
+import SimpleMarkerSymbol from "https://js.arcgis.com/4.34/@arcgis/core/symbols/SimpleMarkerSymbol.js";
+import SimpleLineSymbol from "https://js.arcgis.com/4.34/@arcgis/core/symbols/SimpleLineSymbol.js";
+import PopupTemplate from "https://js.arcgis.com/4.34/@arcgis/core/PopupTemplate.js";
+
+const trajectoryData = {{ simulation.geojson.trajectory | tojson }};
+const pointData = {{ simulation.geojson.points | tojson }};
+const sourceLatitude = Number({{ simulation.latitude }});
+const sourceLongitude = Number({{ simulation.longitude }});
+const simulationDuration = Number({{ simulation.duration }});
+const simulationDt = Number({{ simulation.dt }});
+const selectedTimeIndex = Number({{ simulation.time_index }});
+const meteorologyTimes = {{ simulation.meteorology.times | tojson }};
+
+console.log("Selected meteorological index:", selectedTimeIndex);
+console.log("Selected meteorological time:", meteorologyTimes[selectedTimeIndex]);
+console.log("Trajectory:", trajectoryData);
+console.log("Points:", pointData);
+
+const map = new Map({ basemap: "topo-vector" });
+
+const view = new MapView({
+    container: "dispersion-map",
+    map: map,
+    center: [sourceLongitude, sourceLatitude],
+    zoom: 8
+});
+
+const trajectoryLayer = new GraphicsLayer();
+const particleLayer = new GraphicsLayer();
+const sourceLayer = new GraphicsLayer();
+
+map.addMany([trajectoryLayer, particleLayer, sourceLayer]);
+
+const sourceGraphic = new Graphic({
+    geometry: new Point({
+        longitude: sourceLongitude,
+        latitude: sourceLatitude,
+        spatialReference: { wkid: 4326 }
+    }),
+    symbol: new SimpleMarkerSymbol({
+        style: "circle",
+        size: 16,
+        color: [220, 53, 69],
+        outline: { color: [255, 255, 255], width: 2 }
+    }),
+    attributes: {
+        latitude: sourceLatitude,
+        longitude: sourceLongitude
+    },
+    popupTemplate: new PopupTemplate({
+        title: "Volcano Source",
+        content: [
+            {
+                type: "fields",
+                fieldInfos: [
+                    { fieldName: "latitude", label: "Latitude" },
+                    { fieldName: "longitude", label: "Longitude" }
+                ]
+            }
+        ]
+    })
+});
+
+sourceLayer.add(sourceGraphic);
 
 function createTrajectoryGraphics() {
-
     trajectoryLayer.removeAll();
 
+    if (!trajectoryData || !trajectoryData.features) return;
 
-    if (
-        !trajectoryData ||
-        !trajectoryData.features
-    ) {
+    trajectoryData.features.forEach(feature => {
+        if (!feature.geometry || !feature.geometry.coordinates) return;
 
-        console.warn(
-            "No trajectory GeoJSON"
-        );
+        const coordinates = feature.geometry.coordinates;
 
-        return;
+        if (coordinates.length < 2) return;
 
-    }
+        const paths = [
+            coordinates.map(coordinate => [
+                Number(coordinate[0]),
+                Number(coordinate[1]),
+                Number(coordinate[2] || 0)
+            ])
+        ];
 
+        const properties = feature.properties || {};
 
-    trajectoryData.features.forEach(
-        function(feature) {
-
-
-            if (
-                !feature.geometry ||
-                !feature.geometry.coordinates
-            ) {
-
-                return;
-
-            }
-
-
-            const coordinates =
-                feature.geometry.coordinates;
-
-
-            if (
-                coordinates.length < 2
-            ) {
-
-                return;
-
-            }
-
-
-            const paths = [
-
-                coordinates.map(
-                    function(coordinate) {
-
-                        return [
-
-                            Number(
-                                coordinate[0]
-                            ),
-
-                            Number(
-                                coordinate[1]
-                            ),
-
-                            Number(
-                                coordinate[2] || 0
-                            )
-
-                        ];
-
+        const graphic = new Graphic({
+            geometry: new Polyline({
+                paths: paths,
+                hasZ: true,
+                spatialReference: { wkid: 4326 }
+            }),
+            symbol: new SimpleLineSymbol({
+                color: [13, 110, 253, 0.65],
+                width: 2
+            }),
+            attributes: properties,
+            popupTemplate: new PopupTemplate({
+                title: "Particle Trajectory",
+                content: [
+                    {
+                        type: "fields",
+                        fieldInfos: [
+                            { fieldName: "particle_id", label: "Particle ID" },
+                            { fieldName: "class", label: "Class" },
+                            { fieldName: "radius", label: "Radius" },
+                            { fieldName: "mass", label: "Mass" },
+                            { fieldName: "settling_velocity", label: "Settling Velocity" }
+                        ]
                     }
-                )
+                ]
+            })
+        });
 
-            ];
-
-
-            const properties =
-                feature.properties || {};
-
-
-            const graphic =
-                new Graphic({
-
-                    geometry:
-                        new Polyline({
-
-                            paths:
-                                paths,
-
-                            spatialReference: {
-                                wkid: 4326
-                            }
-
-                        }),
-
-
-                    symbol:
-                        new SimpleLineSymbol({
-
-                            color: [
-                                13,
-                                110,
-                                253,
-                                0.65
-                            ],
-
-                            width:
-                                2
-
-                        }),
-
-
-                    attributes:
-                        properties,
-
-
-                    popupTemplate:
-                        new PopupTemplate({
-
-                            title:
-                                "Particle Trajectory",
-
-                            content:
-                                [
-
-                                    {
-
-                                        type:
-                                            "fields",
-
-                                        fieldInfos:
-                                            [
-
-                                                {
-
-                                                    fieldName:
-                                                        "particle_id",
-
-                                                    label:
-                                                        "Particle ID"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "class",
-
-                                                    label:
-                                                        "Class"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "radius",
-
-                                                    label:
-                                                        "Radius"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "mass",
-
-                                                    label:
-                                                        "Mass"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "settling_velocity",
-
-                                                    label:
-                                                        "Settling Velocity"
-
-                                                }
-
-                                            ]
-
-                                    }
-
-                                ]
-
-                        })
-
-                });
-
-
-            trajectoryLayer.add(
-                graphic
-            );
-
-        }
-    );
-
+        trajectoryLayer.add(graphic);
+    });
 }
 
-
-/* ============================================================= */
-/* PARTICLES */
-/* ============================================================= */
-
-function renderParticles(
-    simulationTime,
-    particleClass
-) {
-
+function renderParticles(simulationTime, particleClass) {
     particleLayer.removeAll();
 
-
-    if (
-        !pointData ||
-        !pointData.features
-    ) {
-
-        return;
-
-    }
-
-
-    pointData.features.forEach(
-        function(feature) {
-
-
-            if (
-                !feature.geometry ||
-                !feature.geometry.coordinates
-            ) {
-
-                return;
-
-            }
-
-
-            const properties =
-                feature.properties || {};
-
-
-            const particleTime =
-                Number(
-                    properties.time
-                );
-
-
-            if (
-                Math.abs(
-                    particleTime -
-                    Number(simulationTime)
-                ) > 0.000001
-            ) {
-
-                return;
-
-            }
-
-
-            if (
-                particleClass !== "all" &&
-                String(
-                    properties.class
-                ) !== String(
-                    particleClass
-                )
-            ) {
-
-                return;
-
-            }
-
-
-            const coordinates =
-                feature.geometry.coordinates;
-
-
-            const longitude =
-                Number(
-                    coordinates[0]
-                );
-
-
-            const latitude =
-                Number(
-                    coordinates[1]
-                );
-
-
-            const altitude =
-                Number(
-                    coordinates[2] || 0
-                );
-
-
-            const graphic =
-                new Graphic({
-
-                    geometry:
-                        new Point({
-
-                            longitude:
-                                longitude,
-
-                            latitude:
-                                latitude,
-
-                            z:
-                                altitude,
-
-                            spatialReference: {
-                                wkid: 4326
-                            }
-
-                        }),
-
-
-                    symbol:
-                        new SimpleMarkerSymbol({
-
-                            style:
-                                "circle",
-
-                            size:
-                                7,
-
-                            color: [
-                                255,
-                                193,
-                                7
-                            ],
-
-                            outline: {
-
-                                color: [
-                                    255,
-                                    255,
-                                    255
-                                ],
-
-                                width:
-                                    1
-
-                            }
-
-                        }),
-
-
-                    attributes:
-                        properties,
-
-
-                    popupTemplate:
-                        new PopupTemplate({
-
-                            title:
-                                "Volcanic Ash Particle",
-
-                            content:
-                                [
-
-                                    {
-
-                                        type:
-                                            "fields",
-
-                                        fieldInfos:
-                                            [
-
-                                                {
-
-                                                    fieldName:
-                                                        "particle_id",
-
-                                                    label:
-                                                        "Particle ID"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "class",
-
-                                                    label:
-                                                        "Class"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "time",
-
-                                                    label:
-                                                        "Time (s)"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "altitude",
-
-                                                    label:
-                                                        "Altitude (m)"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "u",
-
-                                                    label:
-                                                        "U (m/s)"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "v",
-
-                                                    label:
-                                                        "V (m/s)"
-
-                                                },
-
-                                                {
-
-                                                    fieldName:
-                                                        "vertical",
-
-                                                    label:
-                                                        "Vertical (m/s)"
-
-                                                }
-
-                                            ]
-
-                                    }
-
-                                ]
-
-                        })
-
-                });
-
-
-            particleLayer.add(
-                graphic
-            );
-
-        }
-    );
-
+    if (!pointData || !pointData.features) return;
+
+    pointData.features.forEach(feature => {
+        if (!feature.geometry || !feature.geometry.coordinates) return;
+
+        const properties = feature.properties || {};
+        const particleTime = Number(properties.time);
+
+        if (Math.abs(particleTime - Number(simulationTime)) > 0.000001) return;
+
+        if (particleClass !== "all" && String(properties.class) !== String(particleClass)) return;
+
+        const coordinates = feature.geometry.coordinates;
+
+        const longitude = Number(coordinates[0]);
+        const latitude = Number(coordinates[1]);
+        const altitude = Number(properties.altitude || coordinates[2] || 0);
+
+        const graphic = new Graphic({
+            geometry: new Point({
+                longitude: longitude,
+                latitude: latitude,
+                z: altitude,
+                hasZ: true,
+                spatialReference: { wkid: 4326 }
+            }),
+            symbol: new SimpleMarkerSymbol({
+                style: "circle",
+                size: 7,
+                color: [255, 193, 7],
+                outline: { color: [255, 255, 255], width: 1 }
+            }),
+            attributes: properties,
+            popupTemplate: new PopupTemplate({
+                title: "Volcanic Ash Particle",
+                content: [
+                    {
+                        type: "fields",
+                        fieldInfos: [
+                            { fieldName: "particle_id", label: "Particle ID" },
+                            { fieldName: "class", label: "Class" },
+                            { fieldName: "time", label: "Time (s)" },
+                            { fieldName: "time_index", label: "Meteorological Time Index" },
+                            { fieldName: "altitude", label: "Altitude (m)" },
+                            { fieldName: "u", label: "U (m/s)" },
+                            { fieldName: "v", label: "V (m/s)" },
+                            { fieldName: "vertical", label: "Vertical (m/s)" }
+                        ]
+                    }
+                ]
+            })
+        });
+
+        particleLayer.add(graphic);
+    });
 }
-
-
-/* ============================================================= */
-/* UPDATE MAP */
-/* ============================================================= */
 
 function updateMap() {
+    const slider = document.getElementById("time-slider");
+    const currentTime = document.getElementById("current-time");
+    const particleFilter = document.getElementById("particle-filter");
 
+    const time = Number(slider.value);
 
-    const slider =
-        document.getElementById(
-            "time-slider"
-        );
+    currentTime.textContent = time + " s";
 
-
-    const currentTime =
-        document.getElementById(
-            "current-time"
-        );
-
-
-    const particleFilter =
-        document.getElementById(
-            "particle-filter"
-        );
-
-
-    const time =
-        Number(
-            slider.value
-        );
-
-
-    currentTime.textContent =
-        time + " s";
-
-
-    renderParticles(
-        time,
-        particleFilter.value
-    );
-
+    renderParticles(time, particleFilter.value);
 }
 
+const slider = document.getElementById("time-slider");
+const particleFilter = document.getElementById("particle-filter");
 
-/* ============================================================= */
-/* CONTROLS */
-/* ============================================================= */
-
-const slider =
-    document.getElementById(
-        "time-slider"
-    );
-
-
-const particleFilter =
-    document.getElementById(
-        "particle-filter"
-    );
-
-
-slider.addEventListener(
-    "input",
-    updateMap
-);
-
-
-particleFilter.addEventListener(
-    "change",
-    updateMap
-);
-
-
-/* ============================================================= */
-/* INITIALIZE */
-/* ============================================================= */
+slider.addEventListener("input", updateMap);
+particleFilter.addEventListener("change", updateMap);
 
 createTrajectoryGraphics();
 
-
-view.when(
-    function() {
-
-        console.log(
-            "ArcGIS map loaded"
-        );
-
-
-        updateMap();
-
-    }
-);
+view.when(() => {
+    console.log("ArcGIS map loaded");
+    updateMap();
+});
 
 </script>
 
