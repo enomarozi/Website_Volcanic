@@ -1,11 +1,8 @@
 from pathlib import Path
-
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-
 from app.schemas.simulation import SimulationConfig
-
 from app.services.meteorology import MeteorologyService
 from app.services.turbulence import TurbulenceService
 from app.services.particle import ParticleService
@@ -14,32 +11,14 @@ from app.services.dispersion import DispersionService
 from app.services.eruption import EruptionService
 from app.services.geojson import GeoJSONService
 
-
 router = APIRouter()
-
-templates = Jinja2Templates(
-    directory="app/templates"
-)
-
-
+templates = Jinja2Templates(directory="app/templates")
 BASE_DIR = Path(__file__).resolve().parents[2]
 
-
-meteorology_service = MeteorologyService(
-    str(
-        BASE_DIR
-        / "data"
-        / "era5_pressure_jan_2026.nc"
-    )
-)
-
-
+meteorology_service = MeteorologyService(str(BASE_DIR / "data" / "era5_pressure_jan_2026.nc"))
 turbulence = TurbulenceService()
-
 particle_service = ParticleService()
-
 eruption_service = EruptionService()
-
 
 particle_simulation = ParticleSimulationService(
     meteorology=meteorology_service,
@@ -47,89 +26,44 @@ particle_simulation = ParticleSimulationService(
     particle=particle_service
 )
 
-
 dispersion = DispersionService(
     particle_simulation=particle_simulation,
     meteorology=meteorology_service
 )
 
-
 geojson_service = GeoJSONService()
 
 
-@router.get(
-    "/",
-    response_class=HTMLResponse
-)
-async def dashboard(
-    request: Request
-):
-
-    return templates.TemplateResponse(
-        request=request,
-        name="dashboard.html",
-        context={}
-    )
+@router.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    return templates.TemplateResponse(request=request, name="dashboard.html", context={})
 
 
-@router.get(
-    "/simulations/create",
-    response_class=HTMLResponse
-)
-async def create_simulation(
-    request: Request
-):
-
-    time_information = (
-        meteorology_service
-        .time_information()
-    )
-
-    return templates.TemplateResponse(
-        request=request,
-        name="simulations/create.html",
-        context={
-            "meteorology": time_information
-        }
-    )
+@router.get("/simulations/create", response_class=HTMLResponse)
+async def create_simulation(request: Request):
+    time_information = meteorology_service.time_information()
+    return templates.TemplateResponse(request=request, name="simulations/create.html", context={"meteorology": time_information})
 
 
-@router.post(
-    "/simulations/run",
-    response_class=HTMLResponse
-)
+@router.post("/simulations/run", response_class=HTMLResponse)
 async def run_simulation(
     request: Request,
-
     volcano_name: str = Form(...),
-
     latitude: float = Form(...),
-
     longitude: float = Form(...),
-
     start_date: str = Form(...),
-
     start_time: str = Form(...),
-
     dataset: str = Form(...),
-
+    time_index: int = Form(...),
     altitude: float = Form(...),
-
     eruption_height: float = Form(...),
-
     eruption_duration: float = Form(...),
-
     particle_count: int = Form(...),
-
     mean_radius: float = Form(...),
-
     sigma: float = Form(...),
-
     duration: int = Form(...),
-
     timestep: int = Form(...)
 ):
-
     config = SimulationConfig(
         volcano_name=volcano_name,
         latitude=latitude,
@@ -137,6 +71,7 @@ async def run_simulation(
         start_date=start_date,
         start_time=start_time,
         dataset=dataset,
+        time_index=time_index,
         altitude=altitude,
         eruption_height=eruption_height,
         eruption_duration=eruption_duration,
@@ -147,100 +82,53 @@ async def run_simulation(
         timestep=timestep
     )
 
+    time_information = meteorology_service.time_information()
+    meteorology_times = time_information.get("times", [])
 
-    time_information = (
-        meteorology_service
-        .time_information()
+    if config.time_index < 0 or config.time_index >= len(meteorology_times):
+        raise ValueError(f"Invalid meteorological time index: {config.time_index}")
+
+    atmospheric = meteorology_service.atmospheric_profile(
+        latitude=config.latitude,
+        longitude=config.longitude,
+        time_index=config.time_index
     )
 
-
-    atmospheric = (
-        meteorology_service
-        .atmospheric_profile(
-            latitude=config.latitude,
-            longitude=config.longitude,
-            time_index=0
-        )
+    eruption = eruption_service.calculate(
+        atmospheric_profile=atmospheric,
+        eruption_height=config.eruption_height,
+        eruption_duration=config.eruption_duration
     )
 
-
-    eruption = (
-        eruption_service
-        .calculate(
-            atmospheric_profile=atmospheric,
-            eruption_height=config.eruption_height,
-            eruption_duration=config.eruption_duration
-        )
+    particle_summary = particle_service.create_particle_summary(
+        total_mass=eruption["total_mass"]
     )
 
-
-    particle_summary = (
-        particle_service
-        .create_particle_summary(
-            total_mass=eruption[
-                "total_mass"
-            ]
-        )
+    particles = particle_service.create_particles(
+        total_mass=eruption["total_mass"],
+        latitude=config.latitude,
+        longitude=config.longitude,
+        altitude=config.altitude
     )
 
-
-    particles = (
-        particle_service
-        .create_particles(
-            total_mass=eruption[
-                "total_mass"
-            ],
-            latitude=config.latitude,
-            longitude=config.longitude,
-            altitude=config.altitude
-        )
+    grid = meteorology_service.nearest_grid(
+        latitude=config.latitude,
+        longitude=config.longitude
     )
 
-
-    grid = (
-        meteorology_service
-        .nearest_grid(
-            latitude=config.latitude,
-            longitude=config.longitude
-        )
+    dispersion_result = dispersion.simulate(
+        particles=particles,
+        duration=config.duration,
+        dt=config.timestep,
+        initial_time_index=config.time_index
     )
 
+    trajectory_geojson = geojson_service.trajectory_to_feature_collection(dispersion_result)
+    point_geojson = geojson_service.trajectory_points_to_feature_collection(dispersion_result)
 
-    dispersion_result = (
-        dispersion
-        .simulate(
-            particles=particles,
-            duration=config.duration,
-            dt=config.timestep
-        )
-    )
-
-
-    trajectory_geojson = (
-        geojson_service
-        .trajectory_to_feature_collection(
-            dispersion_result
-        )
-    )
-
-
-    point_geojson = (
-        geojson_service
-        .trajectory_points_to_feature_collection(
-            dispersion_result
-        )
-    )
-
-
-    total_particles = (
-        dispersion_result[
-            "total_particles"
-        ]
-    )
-
+    total_particles = dispersion_result["total_particles"]
 
     simulation = {
-
         "config": {
             "volcano_name": config.volcano_name,
             "latitude": config.latitude,
@@ -248,6 +136,7 @@ async def run_simulation(
             "start_date": config.start_date,
             "start_time": config.start_time,
             "dataset": config.dataset,
+            "time_index": config.time_index,
             "altitude": config.altitude,
             "eruption_height": config.eruption_height,
             "eruption_duration": config.eruption_duration,
@@ -257,69 +146,40 @@ async def run_simulation(
             "duration": config.duration,
             "timestep": config.timestep
         },
-
         "volcano_name": config.volcano_name,
-
         "latitude": config.latitude,
-
         "longitude": config.longitude,
-
         "altitude": config.altitude,
-
         "start_date": config.start_date,
-
         "start_time": config.start_time,
-
         "dataset": config.dataset,
-
+        "time_index": config.time_index,
+        "meteorology_time": str(meteorology_times[config.time_index]),
         "duration": config.duration,
-
         "dt": config.timestep,
-
         "grid": grid,
-
-        "meteorology": dispersion_result[
-            "meteorology"
-        ],
-
+        "meteorology": dispersion_result["meteorology"],
         "atmospheric": atmospheric,
-
         "eruption": eruption,
-
         "particle_summary": particle_summary,
-
         "particles": {
             "total": total_particles,
             "groups": particles
         },
-
-        "particle_count": dispersion_result[
-            "particle_count"
-        ],
-
+        "particle_count": dispersion_result["particle_count"],
         "total_particles": total_particles,
-
-        "steps": dispersion_result[
-            "steps"
-        ],
-
-        "trajectories": dispersion_result[
-            "trajectories"
-        ],
-
+        "steps": dispersion_result["steps"],
+        "trajectories": dispersion_result["trajectories"],
         "geojson": {
             "trajectory": trajectory_geojson,
             "points": point_geojson
         }
     }
 
-
     return templates.TemplateResponse(
         request=request,
         name="simulations/result.html",
-        context={
-            "simulation": simulation
-        }
+        context={"simulation": simulation}
     )
 
 
@@ -453,7 +313,7 @@ async def meteorology_profile():
     return service.atmospheric_profile(
         latitude=-7.54,
         longitude=110.44,
-        time_index=0
+        time_index=config.time_index
     )
 
 @router.get("/api/meteorology/stability")
@@ -465,7 +325,7 @@ async def meteorology_stability():
     atmosphere = meteorology.atmospheric_profile(
         latitude=-7.54,
         longitude=110.44,
-        time_index=0
+        time_index=config.time_index
     )
 
     profile = atmosphere["profile"]
