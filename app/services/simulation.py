@@ -17,154 +17,77 @@ class SimulationService:
         self.dispersion = dispersion
         self.geojson = geojson
 
-    def run(
-        self,
-        config
-    ) -> dict[str, Any]:
+    def run(self, config) -> dict[str, Any]:
 
-        # --------------------------------------------------
-        # 1. Resolve simulation time
-        # --------------------------------------------------
+        info = self.meteorology.time_information()
 
-        time_information = (
-            self.meteorology.time_information()
+        if not info["times"]:
+            raise ValueError("No meteorological time available.")
+
+        time_index = self._resolve_time_index(config, info)
+
+        atmospheric = self.meteorology.atmospheric_profile(
+            config.latitude,
+            config.longitude,
+            time_index
         )
 
-        if not time_information["times"]:
-            raise ValueError(
-                "Meteorological dataset contains no valid time."
-            )
-
-        time_index = (
-            self._resolve_time_index(
-                config=config,
-                time_information=time_information
-            )
+        eruption = self.eruption.calculate(
+            atmospheric,
+            config.eruption_height,
+            config.eruption_duration
         )
 
-        # --------------------------------------------------
-        # 2. Atmospheric profile
-        # --------------------------------------------------
-
-        atmospheric = (
-            self.meteorology.atmospheric_profile(
-                latitude=config.latitude,
-                longitude=config.longitude,
-                time_index=time_index
-            )
+        particle_summary = self.particle.create_particle_summary(
+            eruption["total_mass"]
         )
 
-        # --------------------------------------------------
-        # 3. Eruption source calculation
-        # --------------------------------------------------
-
-        eruption = (
-            self.eruption.calculate(
-                atmospheric_profile=atmospheric,
-                eruption_height=config.eruption_height,
-                eruption_duration=config.eruption_duration
-            )
+        particles = self.particle.create_particles(
+            eruption["total_mass"],
+            config.latitude,
+            config.longitude,
+            config.altitude
         )
 
-        # --------------------------------------------------
-        # 4. Particle distribution
-        # --------------------------------------------------
-
-        particle_summary = (
-            self.particle.create_particle_summary(
-                total_mass=eruption["total_mass"]
-            )
+        grid = self.meteorology.nearest_grid(
+            config.latitude,
+            config.longitude
         )
 
-        particles = (
-            self.particle.create_particles(
-                total_mass=eruption["total_mass"],
-                latitude=config.latitude,
-                longitude=config.longitude,
-                altitude=config.altitude
-            )
+        dispersion = self.dispersion.simulate(
+            particles=particles,
+            duration=config.duration,
+            dt=config.timestep,
+            start_time_index=time_index
         )
-
-        # --------------------------------------------------
-        # 5. Meteorological grid
-        # --------------------------------------------------
-
-        grid = (
-            self.meteorology.nearest_grid(
-                latitude=config.latitude,
-                longitude=config.longitude
-            )
-        )
-
-        # --------------------------------------------------
-        # 6. Particle dispersion
-        # --------------------------------------------------
-
-        dispersion = (
-            self.dispersion.simulate(
-                particles=particles,
-                duration=config.duration,
-                dt=config.timestep
-            )
-        )
-
-        # --------------------------------------------------
-        # 7. GeoJSON
-        # --------------------------------------------------
 
         trajectory_geojson = (
             self.geojson
-            .trajectory_to_feature_collection(
-                dispersion
-            )
+            .trajectory_to_feature_collection(dispersion)
         )
 
         point_geojson = (
             self.geojson
-            .trajectory_points_to_feature_collection(
-                dispersion
-            )
+            .trajectory_points_to_feature_collection(dispersion)
         )
 
-        # --------------------------------------------------
-        # 8. Particle count
-        # --------------------------------------------------
-
-        total_particles = sum(
-            particle.get("count", 1)
-            for particle in particles
+        statistics = self._statistics(
+            dispersion,
+            config.latitude,
+            config.longitude
         )
-
-        # --------------------------------------------------
-        # 9. Build result
-        # --------------------------------------------------
 
         return {
-            "config": self._serialize_config(
-                config
-            ),
+            "config": self._serialize_config(config),
 
             "meteorology": {
                 "time_index": time_index,
-                "time_count": time_information[
-                    "count"
-                ],
-                "interval_seconds": (
-                    time_information[
-                        "interval_seconds"
-                    ]
-                ),
-                "interval_hours": (
-                    time_information[
-                        "interval_hours"
-                    ]
-                ),
-                "times": [
-                    str(value)
-                    for value in time_information[
-                        "times"
-                    ]
-                ]
+                "time_count": info["count"],
+                "interval_seconds":
+                    info["interval_seconds"],
+                "interval_hours":
+                    info["interval_hours"],
+                "times": [str(x) for x in info["times"]]
             },
 
             "location": {
@@ -175,33 +98,35 @@ class SimulationService:
             },
 
             "atmospheric": atmospheric,
-
             "eruption": eruption,
 
             "particle_summary": particle_summary,
 
             "particles": {
-                "total": total_particles,
-                "groups": particles
+                "total": len(particles),
+                "groups": particle_summary["groups"]
             },
 
-            "dispersion": {
-                "particle_count": dispersion[
-                    "particle_count"
-                ],
-                "duration": dispersion[
-                    "duration"
-                ],
-                "dt": dispersion[
-                    "dt"
-                ],
-                "steps": dispersion[
-                    "steps"
-                ],
-                "trajectories": dispersion[
-                    "trajectories"
-                ]
+            "dispersion": dispersion,
+
+            "mass_balance": {
+                "initial_mass":
+                    dispersion["total_mass"],
+                "deposited_mass":
+                    dispersion["deposited_mass"],
+                "airborne_mass":
+                    dispersion["airborne_mass"],
+                "error":
+                    dispersion["mass_error"],
+                "error_percent":
+                    (
+                        abs(dispersion["mass_error"])
+                        / max(dispersion["total_mass"], 1e-30)
+                        * 100.0
+                    )
             },
+
+            "statistics": statistics,
 
             "geojson": {
                 "trajectory": trajectory_geojson,
@@ -209,51 +134,87 @@ class SimulationService:
             }
         }
 
-    def _resolve_time_index(
-        self,
-        config,
-        time_information
-    ) -> int:
+    def _statistics(self, dispersion, source_lat, source_lon):
 
-        requested = getattr(
-            config,
-            "time_index",
-            None
-        )
+        max_distance = 0.0
+        max_altitude = 0.0
+        deposited = []
 
-        if requested is not None:
+        for p in dispersion["trajectories"]:
+            for x in p["trajectory"]:
 
-            requested = int(
-                requested
-            )
-
-            if requested < 0:
-                raise ValueError(
-                    "time_index cannot be negative."
+                max_altitude = max(
+                    max_altitude,
+                    float(x["altitude"])
                 )
 
-            if requested >= time_information[
-                "count"
-            ]:
-                raise ValueError(
-                    "time_index exceeds meteorological dataset."
+                distance = self._distance(
+                    source_lat,
+                    source_lon,
+                    x["latitude"],
+                    x["longitude"]
                 )
 
-            return requested
+                max_distance = max(
+                    max_distance,
+                    distance
+                )
 
-        return 0
+            if p.get("deposition"):
+                deposited.append(p["deposition"])
+
+        return {
+            "max_distance_m":
+                max_distance,
+            "max_distance_km":
+                max_distance / 1000.0,
+            "max_altitude_m":
+                max_altitude,
+            "deposited_particles":
+                len(deposited)
+        }
 
     @staticmethod
-    def _serialize_config(
-        config
-    ) -> dict[str, Any]:
+    def _distance(lat1, lon1, lat2, lon2):
 
-        if hasattr(
-            config,
-            "model_dump"
-        ):
+        import math
+
+        r = 6371000.0
+        p1 = math.radians(lat1)
+        p2 = math.radians(lat2)
+
+        dp = math.radians(lat2 - lat1)
+        dl = math.radians(lon2 - lon1)
+
+        a = (
+            math.sin(dp / 2) ** 2
+            + math.cos(p1)
+            * math.cos(p2)
+            * math.sin(dl / 2) ** 2
+        )
+
+        return 2 * r * math.asin(
+            min(1.0, math.sqrt(a))
+        )
+
+    @staticmethod
+    def _resolve_time_index(config, info):
+
+        index = getattr(config, "time_index", 0)
+
+        index = int(index)
+
+        if not 0 <= index < info["count"]:
+            raise ValueError(
+                f"time_index must be between 0 and {info['count'] - 1}"
+            )
+
+        return index
+
+    @staticmethod
+    def _serialize_config(config):
+
+        if hasattr(config, "model_dump"):
             return config.model_dump()
 
-        return dict(
-            config
-        )
+        return dict(config)

@@ -5,10 +5,10 @@ class ParticleService:
 
     def __init__(
         self,
-        particle_density: float = 2500.0,
-        air_density: float = 1.225,
-        gravity: float = 9.81,
-        total_particles: int = 500
+        particle_density=2500.0,
+        air_density=1.225,
+        gravity=9.81,
+        total_particles=500
     ):
         self.particle_density = particle_density
         self.air_density = air_density
@@ -16,22 +16,27 @@ class ParticleService:
         self.total_particles = total_particles
 
     def settling_velocity(self, radius):
-        diameter = 2.0 * radius
+        d = 2.0 * float(radius)
+        mu = 1.81e-5
 
-        return (
-            (self.particle_density - self.air_density)
-            * self.gravity
-            * diameter ** 2
-        ) / (18.0 * 1.81e-5)
+        return float(
+            (
+                (self.particle_density - self.air_density)
+                * self.gravity
+                * d ** 2
+            ) / (18.0 * mu)
+        )
 
-    def particle_mass(self, radius: float):
+    def particle_mass(self, radius):
         if radius <= 0:
-            raise ValueError("Particle radius must be greater than zero.")
+            raise ValueError("Radius must be greater than zero.")
 
-        volume = (4.0 / 3.0) * np.pi * radius ** 3
-        mass = self.particle_density * volume
-
-        return float(mass)
+        return float(
+            self.particle_density
+            * (4.0 / 3.0)
+            * np.pi
+            * radius ** 3
+        )
 
     def particle_count(self):
         fine = int(self.total_particles * 0.16)
@@ -44,6 +49,15 @@ class ParticleService:
             "coarse": coarse
         }
 
+    def definitions(self):
+        counts = self.particle_count()
+
+        return [
+            ("fine", 5e-6, 0.16, counts["fine"]),
+            ("medium", 50e-6, 0.68, counts["medium"]),
+            ("coarse", 500e-6, 0.16, counts["coarse"])
+        ]
+
     def create_particles(
         self,
         total_mass,
@@ -54,62 +68,49 @@ class ParticleService:
         if total_mass <= 0:
             raise ValueError("Total mass must be greater than zero.")
 
-        counts = self.particle_count()
-
-        definitions = [
-            ("fine", 5e-6, 0.16, counts["fine"]),
-            ("medium", 50e-6, 0.68, counts["medium"]),
-            ("coarse", 500e-6, 0.16, counts["coarse"])
-        ]
-
         particles = []
         particle_id = 0
 
-        for name, radius, fraction, count in definitions:
+        for name, radius, fraction, count in self.definitions():
+            if count <= 0:
+                continue
+
             group_mass = total_mass * fraction
-            mass_per_particle = group_mass / count
-            settling_velocity = self.settling_velocity(radius)
+            mass_each = group_mass / count
+            settling = self.settling_velocity(radius)
 
             for _ in range(count):
                 particles.append({
                     "id": particle_id,
                     "class": name,
-                    "radius": float(radius),
-                    "mass": float(mass_per_particle),
+                    "radius": radius,
+                    "fraction": fraction,
+                    "mass": mass_each,
                     "latitude": float(latitude),
                     "longitude": float(longitude),
                     "altitude": float(altitude),
-                    "settling_velocity": float(settling_velocity)
+                    "settling_velocity": settling
                 })
-
                 particle_id += 1
 
         return particles
 
-    def create_particle_summary(self, total_mass: float):
-        counts = self.particle_count()
-
+    def create_particle_summary(self, total_mass):
         groups = []
 
-        definitions = [
-            ("fine", 5e-6, 0.16, counts["fine"]),
-            ("medium", 50e-6, 0.68, counts["medium"]),
-            ("coarse", 500e-6, 0.16, counts["coarse"])
-        ]
-
-        for name, radius, fraction, count in definitions:
-
+        for name, radius, fraction, count in self.definitions():
             group_mass = total_mass * fraction
-
-            mass_per_particle = group_mass / count
 
             groups.append({
                 "class": name,
-                "radius": float(radius),
-                "fraction": float(fraction),
-                "count": int(count),
-                "mass": float(group_mass),
-                "mass_per_particle": float(mass_per_particle)
+                "radius": radius,
+                "fraction": fraction,
+                "count": count,
+                "mass": group_mass,
+                "mass_per_particle":
+                    group_mass / count if count else 0.0,
+                "settling_velocity":
+                    self.settling_velocity(radius)
             })
 
         return {

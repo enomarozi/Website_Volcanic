@@ -1,104 +1,163 @@
 class DispersionService:
+
     def __init__(self, particle_simulation, meteorology):
         self.particle_simulation = particle_simulation
         self.meteorology = meteorology
 
-    def simulate(self, particles, duration, dt, start_time_index=0):
+    def simulate(
+        self,
+        particles,
+        duration,
+        dt,
+        start_time_index=0
+    ):
         if not particles:
             raise ValueError("Particles cannot be empty.")
-        if duration <= 0:
-            raise ValueError("Duration must be greater than zero.")
-        if dt <= 0:
-            raise ValueError("Time step must be greater than zero.")
-        if duration < dt:
-            raise ValueError("Duration must be greater than or equal to dt.")
+        if duration <= 0 or dt <= 0:
+            raise ValueError("Duration and dt must be greater than zero.")
 
-        time_information = self.meteorology.time_information()
-        meteorology_times = time_information.get("elapsed_seconds", [])
-        meteorology_count = len(meteorology_times)
+        info = self.meteorology.time_information()
+        times = info["elapsed_seconds"]
 
-        if meteorology_count == 0:
+        if not times:
             raise ValueError("Meteorological time information is empty.")
 
-        if start_time_index < 0 or start_time_index >= meteorology_count:
-            raise ValueError(f"Invalid start_time_index: {start_time_index}")
+        if not 0 <= start_time_index < len(times):
+            raise ValueError("Invalid start_time_index.")
 
-        steps = int(duration / dt)
+        steps = int(duration // dt)
         trajectories = []
+        deposited_mass = 0.0
 
         for particle in particles:
-            current_latitude = float(particle["latitude"])
-            current_longitude = float(particle["longitude"])
-            current_altitude = float(particle["altitude"])
-            settling_velocity = float(particle.get("settling_velocity", 0.0))
-            particle_id = particle.get("id", len(trajectories) + 1)
-            particle_class = particle.get("class", "unknown")
-            radius = particle.get("radius", 0.0)
-            mass = particle.get("mass", 0.0)
+            lat = float(particle["latitude"])
+            lon = float(particle["longitude"])
+            alt = float(particle["altitude"])
+            mass = float(particle.get("mass", 0.0))
+            settling = float(particle.get("settling_velocity", 0.0))
 
             trajectory = [{
                 "time": 0.0,
-                "latitude": current_latitude,
-                "longitude": current_longitude,
-                "altitude": current_altitude,
+                "latitude": lat,
+                "longitude": lon,
+                "altitude": alt,
                 "u": 0.0,
                 "v": 0.0,
                 "vertical": 0.0,
-                "time_index": start_time_index
+                "time_index": start_time_index,
+                "deposited": False
             }]
 
+            deposited = False
+            deposition = None
+
             for step in range(1, steps + 1):
-                elapsed_time = step * dt
-                time_index = self.meteorology.time_index_at_elapsed(
-                    elapsed_seconds=meteorology_times[start_time_index] + elapsed_time
+                elapsed = step * dt
+
+                absolute_elapsed = (
+                    times[start_time_index] + elapsed
                 )
+
+                time_index = self.meteorology.time_index_at_elapsed(
+                    absolute_elapsed
+                )
+
+                if deposited:
+                    trajectory.append({
+                        **trajectory[-1],
+                        "time": elapsed,
+                        "deposited": True
+                    })
+                    continue
 
                 state = self.particle_simulation.step(
-                    latitude=current_latitude,
-                    longitude=current_longitude,
-                    altitude=current_altitude,
+                    latitude=lat,
+                    longitude=lon,
+                    altitude=alt,
                     dt=dt,
                     time_index=time_index,
-                    settling_velocity=settling_velocity
+                    settling_velocity=settling
                 )
 
-                current_latitude = float(state["latitude"])
-                current_longitude = float(state["longitude"])
-                current_altitude = float(state["altitude"])
+                lat = state["latitude"]
+                lon = state["longitude"]
+                alt = state["altitude"]
 
-                trajectory.append({
-                    "time": elapsed_time,
-                    "latitude": current_latitude,
-                    "longitude": current_longitude,
-                    "altitude": current_altitude,
-                    "u": float(state.get("u", 0.0)),
-                    "v": float(state.get("v", 0.0)),
-                    "vertical": float(state.get("vertical", 0.0)),
-                    "time_index": int(state.get("time_index", time_index))
-                })
+                deposited = state["deposited"]
+
+                item = {
+                    "time": elapsed,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "altitude": alt,
+                    "u": state["u"],
+                    "v": state["v"],
+                    "vertical": state["vertical"],
+                    "diffusion_horizontal":
+                        state["diffusion_horizontal"],
+                    "diffusion_vertical":
+                        state["diffusion_vertical"],
+                    "time_index": state["time_index"],
+                    "deposited": deposited
+                }
+
+                trajectory.append(item)
+
+                if deposited:
+                    deposition = {
+                        "time": elapsed,
+                        "latitude": lat,
+                        "longitude": lon,
+                        "mass": mass
+                    }
+                    deposited_mass += mass
 
             trajectories.append({
-                "particle_id": particle_id,
-                "class": particle_class,
-                "radius": radius,
+                "particle_id": particle.get("id"),
+                "class": particle.get("class", "unknown"),
+                "radius": float(particle.get("radius", 0)),
                 "mass": mass,
-                "settling_velocity": settling_velocity,
+                "settling_velocity": settling,
+                "deposited": deposited,
+                "deposition": deposition,
                 "trajectory": trajectory
             })
 
+        total_mass = sum(
+            float(p.get("mass", 0.0))
+            for p in particles
+        )
+
+        airborne_mass = max(
+            0.0,
+            total_mass - deposited_mass
+        )
+
         return {
             "particle_count": len(trajectories),
-            "total_particles": sum(int(particle.get("count", 1)) for particle in particles),
-            "duration": duration,
-            "dt": dt,
+            "total_particles": len(particles),
+            "duration": float(duration),
+            "dt": float(dt),
             "steps": steps,
-            "start_time_index": start_time_index,
+            "start_time_index": int(start_time_index),
+            "total_mass": total_mass,
+            "deposited_mass": deposited_mass,
+            "airborne_mass": airborne_mass,
+            "mass_error": total_mass - (
+                deposited_mass + airborne_mass
+            ),
             "meteorology": {
-                "time_count": meteorology_count,
-                "interval_seconds": time_information.get("interval_seconds"),
-                "interval_hours": time_information.get("interval_hours"),
-                "times": [str(time) for time in time_information.get("times", [])],
-                "elapsed_seconds": [float(value) for value in meteorology_times]
+                "time_count": len(times),
+                "interval_seconds":
+                    info["interval_seconds"],
+                "interval_hours":
+                    info["interval_hours"],
+                "times": [
+                    str(t) for t in info["times"]
+                ],
+                "elapsed_seconds": [
+                    float(t) for t in times
+                ]
             },
             "trajectories": trajectories
         }
