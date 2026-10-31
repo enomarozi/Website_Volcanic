@@ -1,0 +1,8 @@
+{% extends "layouts/base.html" %}
+{% block title %}Model Dispersi{% endblock %}
+{% block content %}
+<div class="py-4 border-bottom mb-4"><h1 class="h3 mb-1">Model Dispersi</h1><p class="text-muted mb-0">Konfigurasi dan jalankan simulasi abu vulkanik.</p></div>
+<div class="row g-3 mb-4"><div class="col-md-6"><div class="card h-100 shadow-sm"><div class="card-body"><h2 class="h5">01 · Transport atmosfer</h2><p>Medan angin dari profil upper-air digunakan untuk menggerakkan partikel sepanjang waktu simulasi.</p></div></div></div><div class="col-md-6"><div class="card h-100 shadow-sm"><div class="card-body"><h2 class="h5">02 · Deposisi dan konsentrasi</h2><p>Model menghitung deposisi gravitasi, deposisi kering/basah jika data inputnya tersedia, dan keluaran spasial.</p></div></div></div></div>
+<div class="alert alert-info">Sebelum menjalankan simulasi, siapkan dataset GFS/GDAS yang valid pada menu Konfigurasi Meteorologi. Dataset lama yang diunggah manual tetap dapat dipakai jika lolos validasi; tidak ada fallback otomatis ke ERA5.</div>
+<a href="/simulations/create" class="btn btn-primary">Buka konfigurasi simulasi</a>
+{% endblock %}

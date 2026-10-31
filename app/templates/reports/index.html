@@ -1,0 +1,8 @@
+{% extends "layouts/base.html" %}
+{% block title %}Laporan{% endblock %}
+{% block content %}
+<div class="py-4 border-bottom mb-4"><h1 class="h3 mb-1">Laporan Simulasi</h1><p class="text-muted mb-0">Ringkasan hasil simulasi milik akun Anda.</p></div>
+<div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="table-light"><tr><th>ID</th><th>Nama simulasi</th><th>Waktu</th><th>Status</th><th>MER (kg/s)</th><th>Mass balance</th><th>Aksi</th></tr></thead><tbody>
+{% for s in simulations %}<tr><td>{{ s.id }}</td><td>{{ s.name }}</td><td>{{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else '—' }}</td><td><span class="badge {% if s.status == 'completed' %}text-bg-success{% elif s.status == 'failed' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ s.status }}</span></td><td>{{ '%.3e'|format(s.result.mer) if s.result and s.result.mer is not none else '—' }}</td><td>{% if s.result and s.result.validation_status is not none %}{{ 'Valid' if s.result.validation_status else 'Perlu pemeriksaan' }}{% else %}—{% endif %}</td><td class="text-nowrap"><a class="btn btn-sm btn-outline-primary" href="/simulations/history">Detail</a> <a class="btn btn-sm btn-outline-secondary" href="/reports/{{ s.id }}/csv">CSV</a></td></tr>{% else %}<tr><td colspan="7" class="text-center text-muted py-4">Belum ada simulasi. Jalankan model untuk menghasilkan laporan.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

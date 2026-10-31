@@ -1,0 +1,46 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<div class="col-md-3 col-lg-2 d-md-block bg-white sidebar-wrapper border-end">
+  <div class="position-sticky pt-3">
+    <div class="px-3 mb-2 small text-uppercase text-muted fw-semibold">Utama</div>
+    <ul class="nav flex-column mb-3">
+      <li class="nav-item">
+        <a class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">
+          <i class="bi bi-speedometer2 me-2"></i> Dashboard
+        </a>
+      </li>
+    </ul>
+
+    <div class="px-3 mb-2 small text-uppercase text-muted fw-semibold">Alur Simulasi</div>
+    <ul class="nav flex-column mb-3">
+      <li class="nav-item">
+        <a class="nav-link {% if request.url.path.startswith('/meteorology/config') %}active{% endif %}" href="/meteorology/config">
+          <i class="bi bi-cloud-sun me-2"></i> Konfigurasi Meteorologi
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.url.path.startswith('/source-config') %}active{% endif %}" href="/source-config">
+          <i class="bi bi-fire me-2"></i> Konfigurasi Sumber
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.url.path.startswith('/dispersion') or request.url.path.startswith('/simulations/create') %}active{% endif %}" href="/dispersion">
+          <i class="bi bi-wind me-2"></i> Model Dispersi
+        </a>
+      </li>
+    </ul>
+
+    <div class="px-3 mb-2 small text-uppercase text-muted fw-semibold">Arsip</div>
+    <ul class="nav flex-column">
+      <li class="nav-item">
+        <a class="nav-link {% if request.url.path.startswith('/simulations/history') %}active{% endif %}" href="/simulations/history">
+          <i class="bi bi-clock-history me-2"></i> Riwayat
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.url.path.startswith('/reports') %}active{% endif %}" href="/reports">
+          <i class="bi bi-file-earmark-bar-graph me-2"></i> Laporan
+        </a>
+      </li>
+    </ul>
+  </div>
+</div>

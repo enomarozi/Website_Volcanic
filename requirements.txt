@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+Jinja2
+SQLAlchemy
+itsdangerous
+python-multipart
+netCDF4
+numpy
+scipy
+xarray
+cfgrib
+eccodes
+pytest
