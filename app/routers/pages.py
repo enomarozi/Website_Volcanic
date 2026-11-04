@@ -74,7 +74,7 @@ def get_simulation_service(dataset:MeteorologyDataset,total_particles=50000,part
     particle=ParticleService(total_particles=total_particles,particle_density=particle_density)
     particle_simulation=ParticleSimulationService(meteorology,turbulence)
     deposition=DepositionService()
-    dispersion=DispersionService(particle_simulation,meteorology,deposition,turbulence)
+    dispersion=DispersionService(particle_simulation,meteorology,deposition,turbulence, surface_meteorology)
     concentration=ConcentrationService()
     geojson=GeoJSONService()
     service=SimulationService(meteorology,eruption,particle,dispersion,geojson,concentration)

@@ -73,7 +73,7 @@ class DepositionService:
         if float(altitude)>self.layer_height:
             return {"deposited":False,"mechanism":None,"probability":0.0,"pdry":0.0,"pwet":0.0}
         vs=float(particle.get("settling_velocity",0.0))
-        rain_rate=self.default_rain_rate if rain_rate is None else float(rain_rate)
+        rain_rate=0.0 if rain_rate is None else float(rain_rate)
         ra=self.aerodynamic_resistance(friction_velocity,roughness_length=roughness_length)
         rs=self.surface_resistance(vs,friction_velocity)["resistance"]
         vd=self.dry_deposition_velocity(vs,ra,rs)
@@ -81,7 +81,9 @@ class DepositionService:
         ptotal=1.0-(1.0-pdry)*(1.0-pwet)
         deposited=bool(rng.random()<ptotal)
         if deposited:
-            mechanism="wet" if rng.random() < pwet/max(pdry+pwet,1e-15) else "dry"
-        else: mechanism=None
+            wet_only=pwet*(1.0-pdry)
+            mechanism="wet" if rng.random() < wet_only/max(ptotal,1e-15) else "dry"
+        else:
+            mechanism=None
         return {"deposited":deposited,"mechanism":mechanism,"probability":ptotal,
                 "vd":vd,"pdry":pdry,"pwet":pwet,"ra":ra,"rs":rs,"vs":vs}

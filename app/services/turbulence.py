@@ -40,6 +40,12 @@ class TurbulenceService:
 
     def langevin_velocity(self,previous,sigma_u,tau_l,dt,rng=None):
         rng=np.random.default_rng() if rng is None else rng
-        return float(previous)+float(rng.normal())*max(float(sigma_u),0.0)*math.sqrt(2*max(float(dt),0.0)/max(float(tau_l),1e-9))
+        previous=float(previous)
+        sigma_u=max(float(sigma_u),0.0)
+        tau_l=max(float(tau_l),1e-9)
+        dt=max(float(dt),0.0)
+        decay=math.exp(-dt/tau_l)
+        noise=sigma_u*math.sqrt(max(0.0,1.0-decay**2))
+        return float(decay*previous+noise*rng.normal())
 
     def turbulent_displacement(self,fluctuation_velocity,dt): return float(fluctuation_velocity)*float(dt)

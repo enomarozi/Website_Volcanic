@@ -16,7 +16,7 @@ import xarray as xr
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data" / "meteorology"
 CACHE_DIR = DATA_DIR / ".noaa_cache"
-CACHE_VERSION = "v3"
+CACHE_VERSION = "v4"
 
 SOURCE_CONFIG = {
     "GFS": {
