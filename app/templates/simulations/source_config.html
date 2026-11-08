@@ -1,0 +1,130 @@
+{% extends "layouts/base.html" %}
+{% block title %}Konfigurasi Sumber{% endblock %}
+{% block content %}
+
+<div class="py-4 border-bottom mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h1 class="h3 mb-1">Konfigurasi Sumber</h1>
+            <p class="text-muted mb-0">Konfigurasi laju emisi massa, geometri erupsi, dan karakteristik partikel.</p>
+        </div>
+        <span class="badge text-bg-primary px-3 py-2">Tahap 3 dari 4</span>
+    </div>
+    <div class="progress mt-3" style="height:6px">
+        <div class="progress-bar" style="width:75%"></div>
+    </div>
+</div>
+
+{% set dataset_id = request.query_params.get('dataset_id', '') %}
+{% set volcano = request.query_params.get('volcano', '') %}
+{% set latitude = request.query_params.get('latitude', '') %}
+{% set longitude = request.query_params.get('longitude', '') %}
+{% set altitude = request.query_params.get('altitude', '') %}
+
+<form method="get" action="/dispersion" id="sourceForm">
+    <input type="hidden" name="meteorology_dataset_id" value="{{ dataset_id }}">
+
+    <input type="hidden" name="volcano" value="{{ volcano }}">
+    <input type="hidden" name="latitude" value="{{ latitude }}">
+    <input type="hidden" name="longitude" value="{{ longitude }}">
+    <input type="hidden" name="altitude" value="{{ altitude }}">
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <div class="fw-semibold">01 · Metode Laju Emisi Massa (MER)</div>
+            <small class="text-muted">Konfigurasi metode perhitungan Mass Eruption Rate.</small>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Metode MER</label>
+                    <input class="form-control" value="Degruyter" readonly>
+                    <div class="form-text">Metode mengikuti konfigurasi backend yang digunakan saat ini.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Status Perhitungan MER</label>
+                    <input class="form-control" value="Dihitung saat simulasi dijalankan" readonly>
+                </div>
+            </div>
+            <div class="alert alert-info mt-3 mb-0">
+                MER dihitung oleh backend menggunakan parameter atmosfer dan tinggi kolom erupsi. Nilai perhitungan tidak dibuat di sisi tampilan.
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <div class="fw-semibold">02 · Geometri & Waktu Erupsi</div>
+            <small class="text-muted">Informasi lokasi vent, tinggi kolom, dan durasi erupsi.</small>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Nama Simulasi</label>
+                    <input type="text" class="form-control" name="name" value="Simulasi {{ volcano }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Gunung Api</label>
+                    <input class="form-control" value="{{ volcano }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Latitude Vent</label>
+                    <input class="form-control" value="{{ latitude }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Longitude Vent</label>
+                    <input class="form-control" value="{{ longitude }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Elevasi Vent (m)</label>
+                    <input class="form-control" value="{{ altitude }}" readonly>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Tinggi Kolom Erupsi (m)</label>
+                    <input type="number" class="form-control" name="eruption_height" min="1" step="any" value="18000" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Durasi Erupsi (jam)</label>
+                    <input type="number" class="form-control" name="eruption_duration" min="0.01" step="any" value="2" required>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <div class="fw-semibold">03 · Densitas Partikel & Distribusi Vertikal</div>
+            <small class="text-muted">Karakteristik partikel yang digunakan dalam simulasi.</small>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Densitas Partikel (kg/m³)</label>
+                    <input type="number" class="form-control" value="2500" readonly>
+                    <div class="form-text">Nilai mengikuti konfigurasi backend saat ini.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Total Partikel</label>
+                    <input type="number" class="form-control" value="50000">
+                </div>
+            </div>
+            <div class="mt-3">
+                <label class="form-label">Distribusi Vertikal</label>
+                <div class="alert alert-secondary mb-0">
+                    Distribusi vertikal mengikuti formulasi dan konfigurasi model yang dijalankan backend. Parameter distribusi tidak diubah dari halaman ini.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-4">
+        <a href="/meteorology/config?volcano={{ volcano|urlencode }}&latitude={{ latitude }}&longitude={{ longitude }}&altitude={{ altitude }}"
+           class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Previous
+        </a>
+        <button type="submit" class="btn btn-primary" {% if not dataset_id %}disabled{% endif %}>
+            Next <i class="bi bi-arrow-right ms-1"></i>
+        </button>
+    </div>
+</form>
+{% endblock %}

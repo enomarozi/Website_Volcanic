@@ -1,0 +1,113 @@
+{% extends "layouts/base.html" %}
+{% block title %}Model Dispersi{% endblock %}
+{% block content %}
+
+<div class="py-4 border-bottom mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h1 class="h3 mb-1">Model Dispersi</h1>
+            <p class="text-muted mb-0">Konfigurasi transport atmosfer, deposisi, dan simulasi abu vulkanik.</p>
+        </div>
+        <span class="badge text-bg-primary px-3 py-2">Tahap 4 dari 4</span>
+    </div>
+    <div class="progress mt-3" style="height:6px">
+        <div class="progress-bar" style="width:100%"></div>
+    </div>
+</div>
+
+<form method="post" action="/simulations/run">
+    <input type="hidden" name="meteorology_dataset_id" value="{{ q.get('meteorology_dataset_id', '') }}">
+    <input type="hidden" name="name" value="{{ q.get('name', '') }}">
+    <input type="hidden" name="volcano" value="{{ q.get('volcano', '') }}">
+    <input type="hidden" name="latitude" value="{{ q.get('latitude', '') }}">
+    <input type="hidden" name="longitude" value="{{ q.get('longitude', '') }}">
+    <input type="hidden" name="altitude" value="{{ q.get('altitude', '') }}">
+    <input type="hidden" name="eruption_height" value="{{ q.get('eruption_height', '18000') }}">
+    <input type="hidden" name="eruption_duration" value="{{ q.get('eruption_duration', '2') }}">
+    <input type="hidden" name="time_index" value="0">
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <div class="fw-semibold">01 · Transport Atmosfer</div>
+            <small class="text-muted">Pengaturan waktu dan resolusi perhitungan transport partikel.</small>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Durasi Simulasi (jam)</label>
+                    <input type="number" class="form-control" name="duration" min="0.01" step="any" value="6" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Timestep (detik)</label>
+                    <input type="number" class="form-control" name="timestep" min="1" step="1" value="300" required>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <div class="fw-semibold">02 · Parameter Partikel</div>
+            <small class="text-muted">Jumlah partikel yang akan digunakan dalam pemodelan.</small>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Total Partikel</label>
+                    <input type="number" class="form-control" name="total_particles" min="1" step="1" value="50000" required>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <div class="fw-semibold">03 · Ringkasan Konfigurasi</div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <small class="text-muted">Nama Simulasi</small>
+                    <div class="fw-semibold">{{ q.get('name') }}</div>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted">Gunung Api</small>
+                    <div class="fw-semibold">{{ q.get('volcano') }}</div>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted">Koordinat Vent</small>
+                    <div class="fw-semibold">{{ q.get('latitude') }}, {{ q.get('longitude') }}</div>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted">Elevasi Vent</small>
+                    <div class="fw-semibold">{{ q.get('altitude') }} m</div>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted">Tinggi Kolom Erupsi</small>
+                    <div class="fw-semibold">{{ q.get('eruption_height') }} m</div>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted">Durasi Erupsi</small>
+                    <div class="fw-semibold">{{ q.get('eruption_duration') }} jam</div>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted">Dataset Meteorologi</small>
+                    <div class="fw-semibold">ID {{ q.get('meteorology_dataset_id') }}</div>
+                </div>
+            </div>
+            <div class="alert alert-info mt-3 mb-0">
+                Parameter atmosfer, MER, dan deposisi diproses oleh backend berdasarkan dataset yang dipilih.
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-4">
+        <a href="/source-config?{{ q|urlencode }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Previous
+        </a>
+        <button type="submit" class="btn btn-success" {% if not q.get('meteorology_dataset_id') %}disabled{% endif %}>
+            <i class="bi bi-play-fill me-1"></i> Jalankan Simulasi
+        </button>
+    </div>
+</form>
+{% endblock %}

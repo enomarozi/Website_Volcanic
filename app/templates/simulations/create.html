@@ -1,0 +1,799 @@
+
+{% extends "layouts/base.html" %}
+{% block title %}Create Simulation{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h4 class="fw-bold mb-1">Konfigurasi Simulasi</h4>
+            <p class="text-muted mb-0">Atur data meteorologi dan parameter simulasi abu vulkanik.</p>
+        </div>
+        <a href="/dashboard" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Dashboard
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    <form id="simulationForm" method="POST" action="/simulations/run">
+        <input type="hidden" name="volcano" id="volcano" value="{{ request.query_params.get('volcano', 'Merapi') }}">
+        <input type="hidden" name="latitude" id="latitude" value="{{ request.query_params.get('latitude', '-7.5407') }}">
+        <input type="hidden" name="longitude" id="longitude" value="{{ request.query_params.get('longitude', '110.4462') }}">
+        <input type="hidden" name="altitude" id="altitude" value="{{ request.query_params.get('altitude', '3000') }}">
+        <input type="hidden" name="eruption_duration" id="eruption_duration" value="2">
+        <input type="hidden" name="duration" id="duration" value="6">
+
+        <div class="row g-4">
+            <div class="col-lg-9">
+                <!-- 01 WAKTU SIMULASI -->
+                <div class="card border-0 shadow-sm mb-4" id="sectionMeteorology">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center gap-3 mb-4">
+                            <span class="badge bg-primary rounded-pill p-2">01</span>
+                            <div>
+                                <h5 class="fw-bold mb-0">Waktu Simulasi</h5>
+                                <small class="text-muted">Pilih dataset dan waktu meteorologi yang digunakan.</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Dataset Meteorologi</label>
+                            <select class="form-select" name="meteorology_dataset_id" id="meteorology_dataset_id" required>
+                                <option value="">Pilih dataset meteorologi</option>
+                                {% for item in datasets %}
+                                <option value="{{ item.id }}">{{ item.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Dataset harus memiliki data Upper-Air dan Surface.</div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Timestamp Meteorologi</label>
+                                <select class="form-select" name="time_index" id="time_index" required disabled>
+                                    <option value="">Pilih dataset terlebih dahulu</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Informasi Dataset</label>
+                                <div class="border rounded p-2 h-100" id="meteorologyInfo">
+                                    <small class="text-muted">Belum ada dataset dipilih.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NILAI AKTUAL DATASET -->
+                        <div id="datasetValues" class="mt-4 d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 class="fw-bold mb-1">Data Meteorologi Terbaca</h6>
+                                    <small class="text-muted">Nilai aktual berdasarkan lokasi dan timestamp terpilih.</small>
+                                </div>
+                                <span class="badge bg-success" id="datasetStatus">Dataset Loaded</span>
+                            </div>
+
+                            <div class="card border mb-3">
+                                <div class="card-header bg-light fw-semibold">Surface Meteorology</div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Temperature 2m</small>
+                                            <strong id="dsT2m">-</strong>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Surface Pressure</small>
+                                            <strong id="dsPressure">-</strong>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Friction Velocity</small>
+                                            <strong id="dsFriction">-</strong>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Heat Flux</small>
+                                            <strong id="dsHeat">-</strong>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Total Precipitation</small>
+                                            <strong id="dsPrecip">-</strong>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Precipitation Rate</small>
+                                            <strong id="dsRainRate">-</strong>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Grid Latitude</small>
+                                            <strong id="dsGridLat">-</strong>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Grid Longitude</small>
+                                            <strong id="dsGridLon">-</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card border mb-3">
+                                <div class="card-header bg-light fw-semibold">Upper-Air Meteorology</div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered align-middle mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Pressure (hPa)</th>
+                                                    <th>Altitude (m)</th>
+                                                    <th>U (m/s)</th>
+                                                    <th>V (m/s)</th>
+                                                    <th>Wind Speed (m/s)</th>
+                                                    <th>Temperature (K)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="upperAirRows">
+                                                <tr><td colspan="6" class="text-center text-muted">Belum ada data</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card border">
+                                <div class="card-header bg-light fw-semibold">Informasi Grid Dataset</div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <small class="text-muted d-block">Resolusi Horizontal</small>
+                                            <strong id="dsResolution">-</strong>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted d-block">Domain Radius</small>
+                                            <strong id="dsRadius">-</strong>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted d-block">Timestamp</small>
+                                            <strong id="dsTimestamp">-</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h6 class="fw-bold mb-3">Durasi Simulasi</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Durasi Erupsi</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control duration-part" id="eruptionHours" value="0" min="0" placeholder="Jam">
+                                    <span class="input-group-text">Jam</span>
+                                    <input type="number" class="form-control duration-part" id="eruptionMinutes" value="2" min="0" max="59" placeholder="Menit">
+                                    <span class="input-group-text">Menit</span>
+                                    <input type="number" class="form-control duration-part" id="eruptionSeconds" value="0" min="0" max="59" placeholder="Detik">
+                                    <span class="input-group-text">Detik</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Durasi Simulasi</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control duration-part" id="simulationHours" value="6" min="0" placeholder="Jam">
+                                    <span class="input-group-text">Jam</span>
+                                    <input type="number" class="form-control duration-part" id="simulationMinutes" value="0" min="0" max="59" placeholder="Menit">
+                                    <span class="input-group-text">Menit</span>
+                                    <input type="number" class="form-control duration-part" id="simulationSeconds" value="0" min="0" max="59" placeholder="Detik">
+                                    <span class="input-group-text">Detik</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 02 SUMBER DATA METEOROLOGI -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center gap-3 mb-4">
+                            <span class="badge bg-primary rounded-pill p-2">02</span>
+                            <div>
+                                <h5 class="fw-bold mb-0">Sumber Data Meteorologi</h5>
+                                <small class="text-muted">Dataset yang digunakan sebagai masukan simulasi.</small>
+                            </div>
+                        </div>
+
+                        <div id="datasetChoiceList">
+                            {% for item in datasets %}
+                            <div class="form-check border rounded p-3 ps-5 mb-2">
+                                <input class="form-check-input dataset-choice" type="radio"
+                                       name="dataset_choice" id="dataset_{{ item.id }}"
+                                       value="{{ item.id }}" {% if loop.first %}checked{% endif %}>
+                                <label class="form-check-label w-100" for="dataset_{{ item.id }}">
+                                    <strong>{{ item.name }}</strong>
+                                    <small class="d-block text-muted">Dataset ID: {{ item.id }}</small>
+                                </label>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-warning mb-0">Belum ada dataset meteorologi yang valid.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 03 PRESIPITASI -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center gap-3 mb-4">
+                            <span class="badge bg-primary rounded-pill p-2">03</span>
+                            <div>
+                                <h5 class="fw-bold mb-0">Presipitasi</h5>
+                                <small class="text-muted">Informasi hujan dari Surface Accumulated.</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Sumber Presipitasi</label>
+                            <select class="form-select" id="precipitation_source">
+                                <option value="dataset" selected>Dataset Meteorologi</option>
+                                <option value="manual">Manual</option>
+                                <option value="none">Tanpa Presipitasi</option>
+                            </select>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Precipitation Rate (mm/jam)</label>
+                                <input type="number" step="any" min="0" class="form-control"
+                                       id="precipitation_rate" value="" placeholder="Dari dataset" disabled>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Scavenging A</label>
+                                <input type="number" step="any" min="0" class="form-control"
+                                       id="scavenging_a" value="0.000084">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Scavenging B</label>
+                                <input type="number" step="any" min="0" class="form-control"
+                                       id="scavenging_b" value="0.79">
+                            </div>
+                        </div>
+                        <div class="form-text mt-2">
+                            Nilai precipitation rate diambil dari perubahan akumulasi TP antar timestamp.
+                            Parameter scavenging tetap menjadi parameter konfigurasi.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 04 PBL -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center gap-3 mb-4">
+                            <span class="badge bg-primary rounded-pill p-2">04</span>
+                            <div>
+                                <h5 class="fw-bold mb-0">Planetary Boundary Layer (PBL)</h5>
+                                <small class="text-muted">Parameter atmosfer dan angin untuk konfigurasi simulasi.</small>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            Profil angin dan parameter permukaan ditampilkan dari dataset pada bagian Data Meteorologi Terbaca.
+                            Parameter turunan PBL belum diisi otomatis karena memerlukan metode perhitungan tersendiri.
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Ventilation Rate</label>
+                                <input type="number" step="any" min="0" class="form-control"
+                                       id="ventilation_rate" value="4000">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Mean PBL Wind (m/s)</label>
+                                <input type="number" step="any" min="0" class="form-control"
+                                       id="mean_pbl_wind" value="7.018">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Convective Velocity (m/s)</label>
+                                <input type="number" step="any" min="0" class="form-control"
+                                       id="convective_velocity" value="2.0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Timestep (detik)</label>
+                                <input type="number" name="timestep" id="timestep"
+                                       class="form-control" min="1" step="any" value="300" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Timestep Factor</label>
+                                <input type="number" step="any" min="0" class="form-control"
+                                       id="timestep_factor" value="1.0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Total Particles</label>
+                                <input type="number" name="total_particles" id="total_particles"
+                                       class="form-control" min="1" value="50000" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 05 LAND USE DAN TOPOGRAFI -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center gap-3 mb-4">
+                            <span class="badge bg-primary rounded-pill p-2">05</span>
+                            <div>
+                                <h5 class="fw-bold mb-0">Land Use & Topografi</h5>
+                                <small class="text-muted">Informasi lokasi dan data permukaan.</small>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            File Surface Meteorology tidak menyediakan data tutupan lahan maupun DEM.
+                            Nilai di bawah merupakan konfigurasi manual, bukan nilai hasil pembacaan dataset meteorologi.
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Land Cover</label>
+                                <select class="form-select" id="land_cover">
+                                    <option value="unknown" selected>Unknown</option>
+                                    <option value="open">Open</option>
+                                    <option value="forest">Forest</option>
+                                    <option value="urban">Urban</option>
+                                    <option value="water">Water</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Terrain Elevation (m)</label>
+                                <input type="number" step="any" class="form-control"
+                                       id="terrain_elevation" value="{{ request.query_params.get('altitude', '3000') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Terrain Roughness</label>
+                                <select class="form-select" id="terrain_roughness">
+                                    <option value="default" selected>Default</option>
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Terrain Raster</label>
+                                <select class="form-select" id="terrain_raster">
+                                    <option value="default" selected>Default</option>
+                                    <option value="dem">DEM</option>
+                                    <option value="srtm">SRTM</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 06 PARAMETER ERUPSI -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center gap-3 mb-4">
+                            <span class="badge bg-primary rounded-pill p-2">06</span>
+                            <div>
+                                <h5 class="fw-bold mb-0">Parameter Erupsi</h5>
+                                <small class="text-muted">Konfigurasi sumber erupsi vulkanik.</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Nama Simulasi</label>
+                            <input type="text" name="name" id="name" class="form-control"
+                                   value="Volcanic Ash Simulation" required>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Volcano</label>
+                                <input type="text" class="form-control" id="volcano_display"
+                                       value="{{ request.query_params.get('volcano', 'Merapi') }}" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Eruption Height (m)</label>
+                                <input type="number" name="eruption_height" id="eruption_height"
+                                       class="form-control" min="1" step="any" value="18000" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Latitude</label>
+                                <input type="text" class="form-control" id="latitude_display"
+                                       value="{{ request.query_params.get('latitude', '-7.5407') }}" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Longitude</label>
+                                <input type="text" class="form-control" id="longitude_display"
+                                       value="{{ request.query_params.get('longitude', '110.4462') }}" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Vent Elevation (m)</label>
+                                <input type="text" class="form-control" id="altitude_display"
+                                       value="{{ request.query_params.get('altitude', '3000') }}" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-5">
+                    <a href="/dashboard" class="btn btn-outline-secondary">Batal</a>
+                    <button type="submit" id="submitSimulation" class="btn btn-primary px-4">
+                        <i class="bi bi-play-fill"></i> Jalankan Simulasi
+                    </button>
+                </div>
+            </div>
+
+            <!-- RINGKASAN SISI KANAN -->
+            <div class="col-lg-3">
+                <div class="card border-0 shadow-sm position-sticky" style="top: 90px;">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-3">Ringkasan Konfigurasi</h6>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Gunung Api</small>
+                            <strong id="summaryVolcano">-</strong>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Lokasi Vent</small>
+                            <strong id="summaryLocation">-</strong>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Dataset</small>
+                            <strong id="summaryDataset">Belum dipilih</strong>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Timestamp</small>
+                            <strong id="summaryTime">-</strong>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Durasi Erupsi</small>
+                            <strong id="summaryEruption">-</strong>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Durasi Simulasi</small>
+                            <strong id="summaryDuration">-</strong>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Jumlah Partikel</small>
+                            <strong id="summaryParticles">50.000</strong>
+                        </div>
+                        <hr>
+                        <div class="small text-muted">
+                            Pastikan dataset dan timestamp sudah benar sebelum menjalankan simulasi.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    const $ = id => document.getElementById(id);
+    const dataset = $("meteorology_dataset_id");
+    const timeIndex = $("time_index");
+    const info = $("meteorologyInfo");
+    const form = $("simulationForm");
+    let requestController = null;
+    let datasetRequestId = 0;
+
+    const fmt = (value, digits = 3) => {
+        if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+            return "Tidak tersedia";
+        }
+        return Number(value).toFixed(digits);
+    };
+
+    function formatDuration(seconds) {
+        seconds = Math.max(0, Math.floor(seconds));
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return `${h} jam ${m} menit ${s} detik`;
+    }
+
+    function getDuration(prefix) {
+        const h = Number($(prefix + "Hours").value || 0);
+        const m = Number($(prefix + "Minutes").value || 0);
+        const s = Number($(prefix + "Seconds").value || 0);
+
+        if (![h, m, s].every(Number.isFinite) || h < 0 || m < 0 || s < 0 || m > 59 || s > 59) {
+            throw new Error("Format durasi tidak valid. Menit dan detik harus antara 0 sampai 59.");
+        }
+
+        return h * 3600 + m * 60 + s;
+    }
+
+    function clearDatasetValues() {
+        $("datasetValues").classList.add("d-none");
+        $("upperAirRows").innerHTML =
+            '<tr><td colspan="6" class="text-center text-muted">Belum ada data</td></tr>';
+        [
+            "dsT2m", "dsPressure", "dsFriction", "dsHeat",
+            "dsPrecip", "dsRainRate", "dsGridLat", "dsGridLon",
+            "dsResolution", "dsRadius", "dsTimestamp"
+        ].forEach(id => $(id).textContent = "-");
+    }
+
+    async function fetchDataset(time = null) {
+        const id = dataset.value;
+        if (!id) return null;
+
+        if (requestController) requestController.abort();
+        requestController = new AbortController();
+
+        const requestId = ++datasetRequestId;
+        const params = new URLSearchParams({
+            latitude: $("latitude").value,
+            longitude: $("longitude").value
+        });
+
+        if (time !== null) params.set("time_index", time);
+
+        const response = await fetch(
+            `/simulations/meteorology/${encodeURIComponent(id)}?${params}`,
+            { signal: requestController.signal }
+        );
+
+        const data = await response.json();
+        if (requestId !== datasetRequestId) return null;
+        if (!response.ok) throw new Error(data.detail || "Gagal membaca dataset.");
+
+        return data;
+    }
+
+    async function loadMeteorology() {
+        clearDatasetValues();
+        timeIndex.disabled = true;
+        timeIndex.innerHTML = '<option value="">Memuat timestamp...</option>';
+
+        if (!dataset.value) {
+            timeIndex.innerHTML = '<option value="">Pilih dataset terlebih dahulu</option>';
+            info.innerHTML = '<small class="text-muted">Belum ada dataset dipilih.</small>';
+            return;
+        }
+
+        info.innerHTML = '<small class="text-muted">Membaca informasi dataset...</small>';
+
+        try {
+            const data = await fetchDataset();
+            if (!data) return;
+
+            timeIndex.innerHTML = "";
+
+            (data.times || []).forEach((time, index) => {
+                const option = document.createElement("option");
+                option.value = index;
+                option.textContent = time;
+                timeIndex.appendChild(option);
+            });
+
+            if (!data.times || !data.times.length) {
+                throw new Error("Timestamp tidak ditemukan.");
+            }
+
+            timeIndex.disabled = false;
+
+            info.innerHTML = `
+                <div class="row g-2">
+                    <div class="col-6"><small class="text-muted d-block">Jumlah Waktu</small><strong>${data.time_count ?? data.times.length}</strong></div>
+                    <div class="col-6"><small class="text-muted d-block">Interval</small><strong>${data.interval_hours != null ? fmt(data.interval_hours, 2) + " jam" : "Tidak tersedia"}</strong></div>
+                </div>
+            `;
+
+            await loadDatasetValues();
+        } catch (error) {
+            if (error.name === "AbortError") return;
+            timeIndex.innerHTML = '<option value="">Dataset tidak tersedia</option>';
+            info.innerHTML = `<small class="text-danger">${error.message}</small>`;
+            console.error(error);
+        }
+    }
+
+    async function loadDatasetValues() {
+        if (!dataset.value || !timeIndex.value) return;
+
+        $("datasetStatus").textContent = "Memuat...";
+        $("datasetStatus").className = "badge bg-warning";
+
+        try {
+            const data = await fetchDataset(timeIndex.value);
+            if (!data) return;
+
+            const s = data.surface;
+            const upper = data.upper_air;
+
+            $("dsTimestamp").textContent = data.selected_time || data.times?.[timeIndex.value] || "-";
+            $("dsGridLat").textContent = fmt(data.grid?.latitude, 4);
+            $("dsGridLon").textContent = fmt(data.grid?.longitude, 4);
+
+            $("dsResolution").textContent =
+                data.grid_resolution != null ? `${fmt(data.grid_resolution, 3)}` : "Tidak tersedia";
+
+            $("dsRadius").textContent =
+                data.domain_radius != null ? `${fmt(data.domain_radius / 1000, 2)} km` : "Tidak tersedia";
+
+            $("dsT2m").textContent = s ? `${fmt(s.temperature)} K` : "Tidak tersedia";
+            $("dsPressure").textContent = s ? `${fmt(s.surface_pressure / 100, 2)} hPa` : "Tidak tersedia";
+            $("dsFriction").textContent = s ? `${fmt(s.friction_velocity)} m/s` : "Tidak tersedia";
+            $("dsHeat").textContent = s ? `${fmt(s.heat_flux_wm2)} W/m²` : "Tidak tersedia";
+            $("dsPrecip").textContent = s ? `${fmt(s.precipitation_mm)} mm` : "Tidak tersedia";
+            $("dsRainRate").textContent = s ? `${fmt(s.precipitation_rate_mm_hour)} mm/jam` : "Tidak tersedia";
+
+            const rows = $("upperAirRows");
+            rows.innerHTML = "";
+
+            const levels = Array.isArray(upper) ? upper :
+                (upper?.profile || upper?.levels || upper?.atmospheric_profile || []);
+
+            levels.forEach(level => {
+                const u = Number(level.u);
+                const v = Number(level.v);
+                const wind = Number.isFinite(u) && Number.isFinite(v) ? Math.hypot(u, v) : null;
+                const tr = document.createElement("tr");
+
+                const values = [
+                    fmt(level.pressure, 1),
+                    fmt(level.altitude, 1),
+                    fmt(level.u),
+                    fmt(level.v),
+                    fmt(wind),
+                    fmt(level.temperature ?? level.temp ?? level.t)
+                ];
+
+                values.forEach(value => {
+                    const td = document.createElement("td");
+                    td.textContent = value;
+                    tr.appendChild(td);
+                });
+
+                rows.appendChild(tr);
+            });
+
+            if (!levels.length) {
+                rows.innerHTML =
+                    '<tr><td colspan="6" class="text-center text-muted">Profil atmosfer tidak tersedia</td></tr>';
+            }
+
+            // Presipitasi hanya otomatis jika data dataset tersedia.
+            if (s && s.precipitation_rate_mm_hour != null) {
+                $("precipitation_rate").value = Number(s.precipitation_rate_mm_hour).toFixed(4);
+                $("precipitation_source").value = "dataset";
+                $("precipitation_rate").disabled = true;
+            } else {
+                $("precipitation_rate").value = "";
+                $("precipitation_source").value = "none";
+                $("precipitation_rate").disabled = true;
+            }
+
+            $("datasetValues").classList.remove("d-none");
+            $("datasetStatus").textContent = "Dataset Loaded";
+            $("datasetStatus").className = "badge bg-success";
+
+            $("summaryDataset").textContent = data.name || "-";
+            $("summaryTime").textContent = data.selected_time || "-";
+
+        } catch (error) {
+            if (error.name === "AbortError") return;
+            $("datasetStatus").textContent = "Gagal";
+            $("datasetStatus").className = "badge bg-danger";
+            console.error(error);
+            alert(error.message);
+        }
+    }
+
+    dataset.addEventListener("change", function () {
+        document.querySelectorAll(".dataset-choice").forEach(radio => {
+            radio.checked = radio.value === this.value;
+        });
+        $("summaryDataset").textContent =
+            this.selectedOptions[0]?.textContent || "Belum dipilih";
+        loadMeteorology();
+    });
+
+    document.querySelectorAll(".dataset-choice").forEach(radio => {
+        radio.addEventListener("change", function () {
+            dataset.value = this.value;
+            loadMeteorology();
+        });
+    });
+
+    timeIndex.addEventListener("change", loadDatasetValues);
+
+    $("precipitation_source").addEventListener("change", function () {
+        const manual = this.value === "manual";
+        const none = this.value === "none";
+
+        $("precipitation_rate").disabled = !manual;
+        if (none) $("precipitation_rate").value = "0";
+    });
+
+    function updateSummary() {
+        try {
+            const eruption = getDuration("eruption");
+            const duration = getDuration("simulation");
+
+            $("summaryEruption").textContent = formatDuration(eruption);
+            $("summaryDuration").textContent = formatDuration(duration);
+        } catch (error) {
+            $("summaryEruption").textContent = "-";
+            $("summaryDuration").textContent = "-";
+        }
+
+        $("summaryVolcano").textContent = $("volcano").value;
+        $("summaryLocation").textContent =
+            `${$("latitude").value}, ${$("longitude").value}`;
+
+        $("summaryParticles").textContent =
+            Number($("total_particles").value || 0).toLocaleString("id-ID");
+    }
+
+    document.querySelectorAll(".duration-part, #total_particles").forEach(input => {
+        input.addEventListener("input", updateSummary);
+    });
+
+    form.addEventListener("submit", function (event) {
+        try {
+            if (!dataset.value) {
+                throw new Error("Pilih dataset meteorologi terlebih dahulu.");
+            }
+
+            if (timeIndex.disabled || timeIndex.value === "") {
+                throw new Error("Pilih timestamp meteorologi.");
+            }
+
+            const eruption = getDuration("eruption");
+            const duration = getDuration("simulation");
+
+            if (eruption <= 0) {
+                throw new Error("Durasi erupsi harus lebih dari 0 detik.");
+            }
+
+            if (duration <= 0) {
+                throw new Error("Durasi simulasi harus lebih dari 0 detik.");
+            }
+
+            if (eruption > duration) {
+                throw new Error("Durasi erupsi tidak boleh melebihi durasi simulasi.");
+            }
+
+            if (Number($("eruption_height").value) <= 0) {
+                throw new Error("Eruption height harus lebih dari 0.");
+            }
+
+            if (Number($("timestep").value) <= 0) {
+                throw new Error("Timestep harus lebih dari 0.");
+            }
+
+            if (Number($("total_particles").value) < 1) {
+                throw new Error("Total particles minimal 1.");
+            }
+
+            $("eruption_duration").value = (eruption / 3600).toString();
+            $("duration").value = (duration / 3600).toString();
+
+            $("submitSimulation").disabled = true;
+            $("submitSimulation").innerHTML =
+                '<span class="spinner-border spinner-border-sm me-2"></span>Menjalankan Simulasi...';
+
+        } catch (error) {
+            event.preventDefault();
+            alert(error.message);
+        }
+    });
+
+    $("terrain_elevation").addEventListener("change", function () {
+        $("altitude").value = this.value;
+    });
+
+    updateSummary();
+
+    // Muat dataset pertama secara otomatis jika tersedia.
+    if (dataset.options.length > 1) {
+        dataset.selectedIndex = 1;
+        document.querySelectorAll(".dataset-choice").forEach(radio => {
+            radio.checked = radio.value === dataset.value;
+        });
+        loadMeteorology();
+    }
+})();
+</script>
+{% endblock %}

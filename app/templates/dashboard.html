@@ -1,0 +1,859 @@
+
+{% extends "layouts/base.html" %}
+{% block title %}Dashboard | Volcanic Ash Analysis{% endblock %}
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="mb-3">
+        <h4 class="fw-bold mb-1">Dashboard</h4>
+        <p class="text-muted small mb-0">Pilih gunung berapi dan lokasi vent, lalu mulai simulasi dispersi abu.</p>
+    </div>
+
+    <!-- Ringkasan -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="row g-0">
+                {% for item in [
+                    ('Total Simulasi', total_simulations),
+                    ('Sedang Proses', processing_simulations),
+                    ('Selesai', completed_simulations),
+                    ('Dataset Meteo', datasets|length)
+                ] %}
+                <div class="col-6 col-md-3 px-3 py-1 border-end">
+                    <div class="fs-4 fw-bold">{{ item[1] }}</div>
+                    <div class="small text-muted">{{ item[0] }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Peta dan panel samping -->
+    <div class="row g-3 mb-3">
+        <div class="col-xl-9">
+            <div class="card shadow-sm h-100">
+                <div class="card-header py-3">
+                    <div class="fw-semibold">Peta Interaktif</div>
+                    <small class="text-muted">Klik peta untuk memilih koordinat, atau klik penanda gunung.</small>
+                </div>
+                <div class="card-body p-0">
+                    <div id="volcanoMap" style="height: min(65vh, 620px); min-height: 380px;"></div>
+                </div>
+                <div class="card-footer small text-muted">
+                    Peta OpenStreetMap · Leaflet
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3">
+            <!-- Recent Simulations -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header py-3">
+                    <div class="fw-semibold">Recent Simulations</div>
+                    <small class="text-muted">Simulasi terbaru</small>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% if simulations %}
+                        {% for simulation in simulations[:5] %}
+                        <div class="list-group-item py-3">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div class="fw-semibold small">
+                                    {{ simulation.name or "Volcanic Ash Simulation" }}
+                                </div>
+                                {% if simulation.status == "completed" %}
+                                    <span class="badge text-bg-success">Selesai</span>
+                                {% elif simulation.status == "running" %}
+                                    <span class="badge text-bg-primary">Proses</span>
+                                {% elif simulation.status == "failed" %}
+                                    <span class="badge text-bg-danger">Gagal</span>
+                                {% else %}
+                                    <span class="badge text-bg-secondary">{{ simulation.status or "Unknown" }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="small text-muted mt-1">
+                                {{ "%.3f"|format(simulation.latitude) }},
+                                {{ "%.3f"|format(simulation.longitude) }}
+                            </div>
+                            <div class="small text-muted">
+                                {% if simulation.created_at %}
+                                    {{ simulation.created_at.strftime("%d %b %Y %H:%M") }}
+                                {% else %}-{% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="p-3 small text-muted">Belum ada simulasi.</div>
+                    {% endif %}
+                </div>
+                <div class="card-body py-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary w-100"
+                            data-bs-toggle="modal" data-bs-target="#historyModal">
+                        <i class="bi bi-clock-history me-1"></i> Show History
+                    </button>
+                </div>
+            </div>
+
+            <!-- Meteorologi -->
+            <div class="card shadow-sm">
+                <div class="card-header py-3">
+                    <div class="fw-semibold">Meteorologi Tersedia</div>
+                    <small class="text-muted">Dataset untuk simulasi</small>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% if datasets %}
+                        {% for dataset in datasets[:5] %}
+                        <div class="list-group-item py-3">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div class="fw-semibold small">{{ dataset.name }}</div>
+                                <span class="badge text-bg-success">Tersedia</span>
+                            </div>
+                            <div class="small text-muted mt-1">
+                                {% if dataset.start_time and dataset.end_time %}
+                                    {{ dataset.start_time }} — {{ dataset.end_time }}
+                                {% else %}
+                                    Informasi waktu tidak tersedia
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="p-3">
+                            <div class="small text-muted mb-2">Belum ada dataset meteorologi.</div>
+                            <a href="/meteorology/upload" class="btn btn-sm btn-primary">Unggah Dataset</a>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-body py-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary w-100"
+                            data-bs-toggle="modal" data-bs-target="#meteorologyModal">
+                        <i class="bi bi-cloud-sun me-1"></i> Kelola Meteorologi
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input koordinat -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header py-3">
+            <div class="fw-semibold">Opsi Input Koordinat</div>
+            <small class="text-muted">Pilih gunung pada peta atau masukkan koordinat vent secara manual.</small>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <span class="small text-muted">Lokasi terpilih:</span>
+                <strong id="selectedVolcanoName" class="ms-1">Anak Krakatau</strong>
+                <span id="selectedVolcanoLocation" class="text-muted small ms-2"></span>
+            </div>
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <label for="latitudeInput" class="form-label small">Lintang / Latitude (°)</label>
+                    <input type="number" class="form-control" id="latitudeInput"
+                           step="any" min="-90" max="90" value="-6.1020">
+                </div>
+                <div class="col-lg-6">
+                    <label for="longitudeInput" class="form-label small">Bujur / Longitude (°)</label>
+                    <input type="number" class="form-control" id="longitudeInput"
+                           step="any" min="-180" max="180" value="105.4230">
+                </div>
+                <div class="col-lg-6">
+                    <label for="elevationInput" class="form-label small">Elevasi Vent (m)</label>
+                    <input type="number" class="form-control" id="elevationInput"
+                           step="1" min="0" value="157">
+                </div>
+                <div class="col-lg-6">
+                    <label for="coordinateFormat" class="form-label small">Format Koordinat</label>
+                    <select class="form-select" id="coordinateFormat">
+                        <option value="decimal">Decimal Degrees</option>
+                        <option value="dms">Derajat, Menit, Detik (DMS)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="dmsInputs" class="row g-3 mt-1 d-none">
+                <div class="col-lg-6">
+                    <label class="form-label small">Lintang DMS</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="latDeg" placeholder="Derajat">
+                        <input type="number" class="form-control" id="latMin" placeholder="Menit" min="0" max="59">
+                        <input type="number" class="form-control" id="latSec" placeholder="Detik" min="0" max="59.999">
+                        <select class="form-select" id="latHem" aria-label="Arah lintang">
+                            <option value="S">S</option>
+                            <option value="N">N</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <label class="form-label small">Bujur DMS</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="lonDeg" placeholder="Derajat">
+                        <input type="number" class="form-control" id="lonMin" placeholder="Menit" min="0" max="59">
+                        <input type="number" class="form-control" id="lonSec" placeholder="Detik" min="0" max="59.999">
+                        <select class="form-select" id="lonHem" aria-label="Arah bujur">
+                            <option value="E">E</option>
+                            <option value="W">W</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <button type="button" id="applyDmsBtn" class="btn btn-sm btn-outline-primary">
+                        Terapkan Koordinat DMS
+                    </button>
+                </div>
+            </div>
+            <div class="form-text mt-3">
+                Koordinat menggunakan lintang dan bujur geografis. Pilih gunung dari daftar untuk mengisi koordinat dan elevasi.
+            </div>
+        </div>
+    </div>
+
+    <!-- Daftar gunung -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <div class="fw-semibold">Daftar Gunung</div>
+                <small class="text-muted">Klik tombol pilih untuk menentukan lokasi simulasi.</small>
+            </div>
+            <span class="badge text-bg-secondary" id="volcanoCount">0 gunung</span>
+        </div>
+        <div class="card-body border-bottom">
+            <input type="search" class="form-control" id="volcanoSearch"
+                   placeholder="Cari gunung atau wilayah...">
+        </div>
+        <div class="table-responsive" style="max-height: 350px;">
+            <table class="table table-hover table-sm align-middle mb-0" id="volcanoTable">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th class="ps-3">Nama</th>
+                        <th>Wilayah</th>
+                        <th>Lintang</th>
+                        <th>Bujur</th>
+                        <th class="text-end">Elevasi</th>
+                        <th class="text-end pe-3">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="volcanoTableBody"></tbody>
+            </table>
+        </div>
+        <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div class="small text-muted" id="selectionSummary"></div>
+            <a href="/simulations/create" id="startSimulationBtn" class="btn btn-primary">
+                Next <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Modal History -->
+<div class="modal fade" id="historyModal" tabindex="-1"
+     aria-labelledby="historyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title fw-bold" id="historyModalLabel">
+                        <i class="bi bi-clock-history me-2"></i>Simulation History
+                    </h5>
+                    <small class="text-muted">Daftar seluruh riwayat simulasi</small>
+                </div>
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table id="historyTable" class="table table-hover table-striped align-middle w-100">
+                        <thead class="table-light">
+                            <tr>
+                                <th>No</th>
+                                <th>Simulation Name</th>
+                                <th>Latitude</th>
+                                <th>Longitude</th>
+                                <th>Status</th>
+                                <th>Created At</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for simulation in simulations %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td class="fw-semibold">
+                                    {{ simulation.name or "Volcanic Ash Simulation" }}
+                                </td>
+                                <td>{{ "%.4f"|format(simulation.latitude) }}</td>
+                                <td>{{ "%.4f"|format(simulation.longitude) }}</td>
+                                <td>
+                                    {% if simulation.status == "completed" %}
+                                        <span class="badge text-bg-success">Selesai</span>
+                                    {% elif simulation.status == "running" %}
+                                        <span class="badge text-bg-primary">Proses</span>
+                                    {% elif simulation.status == "failed" %}
+                                        <span class="badge text-bg-danger">Gagal</span>
+                                    {% else %}
+                                        <span class="badge text-bg-secondary">{{ simulation.status or "Unknown" }}</span>
+                                    {% endif %}
+                                </td>
+                                <td data-order="{{ simulation.created_at.timestamp() if simulation.created_at else 0 }}">
+                                    {{ simulation.created_at.strftime("%d %b %Y %H:%M") if simulation.created_at else "-" }}
+                                </td>
+                                <td class="text-nowrap">
+                                    <a href="/simulations/{{ simulation.id }}/result"
+                                       class="btn btn-sm btn-primary"
+                                       title="Lihat Hasil">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <button type="button"
+                                            class="btn btn-sm btn-danger btn-delete-simulation"
+                                            data-id="{{ simulation.id }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Meteorology -->
+<div class="modal fade" id="meteorologyModal" tabindex="-1"
+     aria-labelledby="meteorologyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title fw-bold" id="meteorologyModalLabel">
+                        <i class="bi bi-cloud-sun me-2"></i>Meteorology Datasets
+                    </h5>
+                    <small class="text-muted">Daftar seluruh dataset meteorologi</small>
+                </div>
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table id="meteorologyTable" class="table table-hover table-striped align-middle w-100">
+                        <thead class="table-light">
+                            <tr>
+                                <th>No</th>
+                                <th>Dataset Name</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Time Count</th>
+                                <th>Interval</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dataset in datasets %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td class="fw-semibold">{{ dataset.name }}</td>
+                                <td>{{ dataset.start_time or "-" }}</td>
+                                <td>{{ dataset.end_time or "-" }}</td>
+                                <td>{{ dataset.time_count or "-" }}</td>
+                                <td>
+                                    {{ dataset.interval_hours ~ " jam" if dataset.interval_hours is not none else "-" }}
+                                </td>
+                                <td>
+                                    {% if dataset.status == "valid" %}
+                                        <span class="badge text-bg-success">Valid</span>
+                                    {% else %}
+                                        <span class="badge text-bg-secondary">{{ dataset.status or "Unknown" }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-nowrap">
+                                    {% if dataset.uploaded_by == user.id or user.role == "admin" %}
+                                    <button type="button"
+                                            class="btn btn-sm btn-danger btn-delete-dataset"
+                                            data-id="{{ dataset.id }}"
+                                            data-name="{{ dataset.name }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted small">Tidak diizinkan</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="/meteorology/upload" class="btn btn-primary">
+                    <i class="bi bi-upload me-1"></i> Upload Dataset
+                </a>
+                <button type="button" class="btn btn-secondary"
+                        data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Modal Konfirmasi Delete -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1"
+     aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="deleteConfirmModalLabel">
+                    <i class="bi bi-exclamation-triangle text-danger me-2"></i>
+                    Konfirmasi Hapus
+                </h5>
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <i class="bi bi-trash text-danger" style="font-size: 3rem;"></i>
+                <p class="mt-3 mb-1 fw-semibold" id="deleteConfirmMessage">
+                    Apakah Anda yakin ingin menghapus data ini?
+                </p>
+                <small class="text-muted">Data yang dihapus tidak dapat dikembalikan.</small>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary"
+                        data-bs-dismiss="modal" id="cancelDeleteBtn">
+                    <i class="bi bi-x-circle me-1"></i> Tidak
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="bi bi-trash me-1"></i> Ya, Hapus
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- DataTables -->
+<link rel="stylesheet" href="https://cdn.datatables.net/2.2.2/css/dataTables.bootstrap5.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.2.2/js/dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/2.2.2/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const $id = id => document.getElementById(id);
+
+    // DataTable History
+    let historyTable = null;
+
+    $('#historyModal').on('shown.bs.modal', function () {
+        if (!historyTable) {
+            historyTable = $('#historyTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [[5, 'desc']],
+                autoWidth: false,
+                scrollX: true,
+                language: {
+                    search: "Cari:",
+                    lengthMenu: "Tampilkan _MENU_ data",
+                    info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ simulasi",
+                    infoEmpty: "Tidak ada data",
+                    zeroRecords: "Simulasi tidak ditemukan",
+                    emptyTable: "Belum ada riwayat simulasi",
+                    paginate: {
+                        first: "Pertama",
+                        last: "Terakhir",
+                        next: "Berikutnya",
+                        previous: "Sebelumnya"
+                    }
+                },
+                columnDefs: [
+                    { orderable: false, targets: [6] }
+                ]
+            });
+        } else {
+            historyTable.columns.adjust().draw(false);
+        }
+    });
+
+    // Modal konfirmasi delete
+    // DataTable Meteorology
+    let meteorologyTable = null;
+
+    $('#meteorologyModal').on('shown.bs.modal', function () {
+        if (!meteorologyTable) {
+            meteorologyTable = $('#meteorologyTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [[0, 'asc']],
+                autoWidth: false,
+                scrollX: true,
+                language: {
+                    search: "Cari:",
+                    lengthMenu: "Tampilkan _MENU_ data",
+                    info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ dataset",
+                    infoEmpty: "Tidak ada data",
+                    zeroRecords: "Dataset tidak ditemukan",
+                    emptyTable: "Belum ada dataset meteorologi",
+                    paginate: {
+                        first: "Pertama",
+                        last: "Terakhir",
+                        next: "Berikutnya",
+                        previous: "Sebelumnya"
+                    }
+                },
+                columnDefs: [
+                    { orderable: false, targets: [7] }
+                ]
+            });
+        } else {
+            meteorologyTable.columns.adjust().draw(false);
+        }
+    });
+
+    // Modal konfirmasi delete bersama
+    let selectedDeleteButton = null;
+    let selectedDeleteTable = null;
+    let selectedDeleteType = null;
+
+    const deleteModal = new bootstrap.Modal($id("deleteConfirmModal"));
+
+    $(document).on("click", ".btn-delete-simulation, .btn-delete-dataset", function(e) {
+        e.preventDefault();
+
+        selectedDeleteButton = this;
+        selectedDeleteType = this.classList.contains("btn-delete-dataset")
+            ? "dataset"
+            : "simulation";
+
+        selectedDeleteTable = selectedDeleteType === "dataset"
+            ? meteorologyTable
+            : historyTable;
+
+        $id("deleteConfirmMessage").textContent = selectedDeleteType === "dataset"
+            ? `Apakah Anda yakin ingin menghapus dataset "${this.dataset.name}"?`
+            : "Apakah Anda yakin ingin menghapus simulasi ini?";
+
+        deleteModal.show();
+    });
+
+    // Tombol Ya, Hapus
+    $id("confirmDeleteBtn").addEventListener("click", async function() {
+        if (!selectedDeleteButton || !selectedDeleteType) return;
+
+        const button = selectedDeleteButton;
+        const id = button.dataset.id;
+        const type = selectedDeleteType;
+        const confirmButton = this;
+
+        const endpoint = type === "dataset"
+            ? `/meteorology/${id}/delete`
+            : `/simulations/${id}/delete`;
+
+        confirmButton.disabled = true;
+        confirmButton.innerHTML =
+            '<span class="spinner-border spinner-border-sm me-1"></span> Menghapus';
+
+        try {
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "application/json"
+                }
+            });
+
+            const contentType = response.headers.get("content-type") || "";
+
+            if (!contentType.includes("application/json")) {
+                const responseText = await response.text();
+                console.error("Delete response:", {
+                    status: response.status,
+                    url: response.url,
+                    redirected: response.redirected,
+                    response: responseText
+                });
+                throw new Error("Server mengembalikan HTML, bukan JSON.");
+            }
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || "Gagal menghapus data.");
+            }
+
+            if (selectedDeleteTable) {
+                selectedDeleteTable
+                    .row($(button).closest("tr"))
+                    .remove()
+                    .draw(false);
+            }
+
+            // Perbarui ringkasan dataset jika yang dihapus dataset
+            if (type === "dataset") {
+                const datasetCount = meteorologyTable.rows().count();
+                const summary = document.querySelector(".row.g-0 .col-md-3:last-child .fs-4");
+
+                if (summary) summary.textContent = datasetCount;
+            }
+
+            deleteModal.hide();
+            selectedDeleteButton = null;
+            selectedDeleteTable = null;
+            selectedDeleteType = null;
+
+        } catch (error) {
+            console.error("Delete error:", error);
+            alert(error.message);
+        } finally {
+            confirmButton.disabled = false;
+            confirmButton.innerHTML =
+                '<i class="bi bi-trash me-1"></i> Ya, Hapus';
+        }
+    });
+
+    // Reset pilihan ketika modal konfirmasi ditutup
+    $id("deleteConfirmModal").addEventListener("hidden.bs.modal", function() {
+        selectedDeleteButton = null;
+        selectedDeleteTable = null;
+        selectedDeleteType = null;
+    });
+
+    // Data gunung
+    const volcanoes = [
+        {name:"Agung",region:"Bali",lat:-8.343,lon:115.508,elevation:2997},
+        {name:"Anak Krakatau",region:"Selat Sunda, Lampung",lat:-6.102,lon:105.423,elevation:157},
+        {name:"Bromo",region:"Jawa Timur",lat:-7.9425,lon:112.9530,elevation:2329},
+        {name:"Kelud",region:"Jawa Timur",lat:-7.930,lon:112.308,elevation:1731},
+        {name:"Kerinci",region:"Jambi / Sumbar",lat:-1.697,lon:101.264,elevation:3805},
+        {name:"Merapi",region:"Jateng / DIY",lat:-7.5407,lon:110.4462,elevation:2910},
+        {name:"Rinjani",region:"Nusa Tenggara Barat",lat:-8.411,lon:116.457,elevation:3726},
+        {name:"Semeru",region:"Jawa Timur",lat:-8.1080,lon:112.9220,elevation:3676}
+    ];
+
+    // Inisialisasi peta
+    const map = L.map("volcanoMap").setView([-5.5, 110.5], 5);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 18
+    }).addTo(map);
+
+    let selectedVolcano = volcanoes.find(v => v.name === "Anak Krakatau") || volcanoes[0];
+    const markers = L.featureGroup().addTo(map);
+
+    function simulationUrl(v) {
+        const params = new URLSearchParams({
+            latitude: v.lat,
+            longitude: v.lon,
+            volcano: v.name,
+            altitude: v.elevation
+        });
+        return `/simulations/create?${params.toString()}`;
+    }
+
+    function setDms(lat, lon) {
+        const convert = (value, positive, negative) => {
+            const abs = Math.abs(value);
+            const deg = Math.floor(abs);
+            const minValue = (abs - deg) * 60;
+            return {
+                deg,
+                min: Math.floor(minValue),
+                sec: (minValue % 1) * 60,
+                hem: value < 0 ? negative : positive
+            };
+        };
+
+        const a = convert(lat, "N", "S");
+        const b = convert(lon, "E", "W");
+
+        $id("latDeg").value = a.deg;
+        $id("latMin").value = a.min;
+        $id("latSec").value = a.sec.toFixed(3);
+        $id("latHem").value = a.hem;
+        $id("lonDeg").value = b.deg;
+        $id("lonMin").value = b.min;
+        $id("lonSec").value = b.sec.toFixed(3);
+        $id("lonHem").value = b.hem;
+    }
+
+    function updateSelection(v, updateMap = true) {
+        selectedVolcano = v;
+        $id("selectedVolcanoName").textContent = v.name;
+        $id("selectedVolcanoLocation").textContent =
+            `${v.region} · ${v.elevation.toLocaleString()} m dpl`;
+        $id("latitudeInput").value = Number(v.lat).toFixed(6);
+        $id("longitudeInput").value = Number(v.lon).toFixed(6);
+        $id("elevationInput").value = v.elevation;
+        $id("startSimulationBtn").href = simulationUrl(v);
+        $id("selectionSummary").textContent =
+            `Lokasi: ${v.name} · ${Number(v.lat).toFixed(4)}°, ${Number(v.lon).toFixed(4)}° · Elevasi ${v.elevation.toLocaleString()} m`;
+
+        setDms(v.lat, v.lon);
+
+        document.querySelectorAll(".volcano-row").forEach(row => {
+            row.classList.toggle("table-active", row.dataset.name === v.name);
+        });
+
+        if (updateMap) {
+            map.setView([v.lat, v.lon], Math.max(map.getZoom(), 7));
+        }
+    }
+
+    function selectManualCoordinates() {
+        const lat = Number($id("latitudeInput").value);
+        const lon = Number($id("longitudeInput").value);
+        const elevation = Number($id("elevationInput").value);
+
+        if (!Number.isFinite(lat) || lat < -90 || lat > 90 ||
+            !Number.isFinite(lon) || lon < -180 || lon > 180 ||
+            !Number.isFinite(elevation) || elevation < 0) {
+            alert("Masukkan koordinat dan elevasi yang valid.");
+            return;
+        }
+
+        updateSelection({
+            name: "Koordinat Manual",
+            region: "Lokasi pilihan",
+            lat,
+            lon,
+            elevation
+        });
+    }
+
+    function renderVolcanoTable(filter = "") {
+        const tbody = $id("volcanoTableBody");
+        const query = filter.trim().toLowerCase();
+
+        const filtered = volcanoes.filter(v =>
+            `${v.name} ${v.region}`.toLowerCase().includes(query)
+        );
+
+        tbody.innerHTML = filtered.map(v => `
+            <tr class="volcano-row ${selectedVolcano.name === v.name ? "table-active" : ""}"
+                data-name="${v.name}">
+                <td class="ps-3 fw-semibold">${v.name}</td>
+                <td>${v.region}</td>
+                <td>${v.lat.toFixed(3)}°</td>
+                <td>${v.lon.toFixed(3)}°</td>
+                <td class="text-end">${v.elevation.toLocaleString()} m</td>
+                <td class="text-end pe-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary choose-volcano"
+                        data-name="${v.name}">Pilih</button>
+                </td>
+            </tr>
+        `).join("");
+
+        $id("volcanoCount").textContent = `${filtered.length} gunung`;
+
+        tbody.querySelectorAll(".choose-volcano").forEach(button => {
+            button.addEventListener("click", () => {
+                const v = volcanoes.find(item => item.name === button.dataset.name);
+                if (v) updateSelection(v);
+            });
+        });
+    }
+
+    // Marker gunung
+    volcanoes.forEach((v, index) => {
+        const marker = L.marker([v.lat, v.lon]).addTo(markers);
+
+        marker.bindPopup(`
+            <div>
+                <strong>${v.name}</strong><br>
+                <small>${v.region}</small><br>
+                <small>Lintang: ${v.lat.toFixed(4)}°</small><br>
+                <small>Bujur: ${v.lon.toFixed(4)}°</small><br>
+                <small>Elevasi: ${v.elevation.toLocaleString()} m</small><br>
+                <button type="button" class="btn btn-sm btn-primary mt-2"
+                    id="selectMarker-${index}">Pilih Gunung</button>
+            </div>
+        `);
+
+        marker.on("popupopen", () => {
+            const button = $id(`selectMarker-${index}`);
+            if (button) {
+                button.addEventListener("click", () => updateSelection(v));
+            }
+        });
+
+        marker.on("click", () => updateSelection(v, false));
+    });
+
+    // Klik peta untuk koordinat manual
+    map.on("click", e => {
+        const v = {
+            name: "Koordinat Manual",
+            region: "Lokasi pilihan dari peta",
+            lat: Number(e.latlng.lat.toFixed(6)),
+            lon: Number(e.latlng.lng.toFixed(6)),
+            elevation: Number($id("elevationInput").value) || 0
+        };
+        updateSelection(v, false);
+    });
+
+    // Input koordinat manual
+    $id("latitudeInput").addEventListener("change", selectManualCoordinates);
+    $id("longitudeInput").addEventListener("change", selectManualCoordinates);
+    $id("elevationInput").addEventListener("change", selectManualCoordinates);
+
+    // Pencarian gunung
+    $id("volcanoSearch").addEventListener("input", e => {
+        renderVolcanoTable(e.target.value);
+    });
+
+    // Format koordinat
+    $id("coordinateFormat").addEventListener("change", function () {
+        $id("dmsInputs").classList.toggle("d-none", this.value !== "dms");
+
+        if (this.value === "dms") {
+            setDms(
+                Number($id("latitudeInput").value),
+                Number($id("longitudeInput").value)
+            );
+        }
+    });
+
+    // Terapkan koordinat DMS
+    $id("applyDmsBtn").addEventListener("click", function () {
+        const readDms = (deg, min, sec, hem) => {
+            const d = Number($id(deg).value);
+            const m = Number($id(min).value);
+            const s = Number($id(sec).value);
+
+            if (![d, m, s].every(Number.isFinite) ||
+                m < 0 || m >= 60 || s < 0 || s >= 60) {
+                return NaN;
+            }
+
+            const sign = ["S", "W"].includes($id(hem).value) ? -1 : 1;
+            return sign * (Math.abs(d) + m / 60 + s / 3600);
+        };
+
+        const lat = readDms("latDeg", "latMin", "latSec", "latHem");
+        const lon = readDms("lonDeg", "lonMin", "lonSec", "lonHem");
+
+        if (!Number.isFinite(lat) || Math.abs(lat) > 90 ||
+            !Number.isFinite(lon) || Math.abs(lon) > 180) {
+            alert("Format DMS tidak valid.");
+            return;
+        }
+
+        $id("latitudeInput").value = lat.toFixed(6);
+        $id("longitudeInput").value = lon.toFixed(6);
+        selectManualCoordinates();
+    });
+
+    // Render awal
+    renderVolcanoTable();
+    updateSelection(selectedVolcano, false);
+
+    setTimeout(() => map.invalidateSize(), 150);
+});
+</script>
+{% endblock %}

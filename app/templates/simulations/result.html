@@ -1,0 +1,298 @@
+
+{% extends "layouts/base.html" %}
+{% block title %}Hasil Simulasi - Volcanic Ash Analysis{% endblock %}
+{% block content %}
+{% set concentration = result.concentration if result.concentration else {} %}
+{% set deposition = result.surface_deposition if result.surface_deposition else {} %}
+{% set location = result.location if result.location else {} %}
+{% set input = result.input if result.input else {} %}
+{% set geojson = result.geojson if result.geojson else {} %}
+{% set volcano = result.volcano_name if result.volcano_name is defined else input.volcano|default('Gunung Api') %}
+{% set partitions = result.mass_partition if result.mass_partition is defined else {} %}
+
+<div class="result-page">
+    <div class="result-heading d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+        <div>
+            <h4 class="fw-bold mb-1">Model Dispersi & Hasil</h4>
+            <div class="result-muted">{{ volcano }} · {{ result.simulation_time|default('-') }} · metode {{ result.mer_method|default('Degruyter & Bonadonna (2012)') }}</div>
+        </div>
+        <span class="status-badge"><span></span> Simulasi selesai</span>
+    </div>
+
+    <div class="summary-bar d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+        <div>
+            Durasi simulasi <strong>{{ input.duration_hours|default(0)|sig }} jam</strong>
+            <span class="separator">·</span>
+            output tiap <strong>{{ result.output_interval_minutes|default('-')|sig }} menit</strong>
+            <span class="separator">·</span>
+            total massa erupsi <strong>{{ result.total_erupted_mass|default('-')|sig }} kg</strong>
+        </div>
+        <a href="/simulations/create" class="btn btn-run"><i class="bi bi-play-fill me-1"></i> Jalankan Ulang</a>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="metric-card metric-primary">
+                <div class="metric-label">Puncak muatan kolom</div>
+                <div class="metric-value">{{ result.peak_column_loading|default('-')|sig }} <small>g/m²</small></div>
+                <div class="metric-note">∫C dz maksimum</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="metric-card">
+                <div class="metric-label">Rata-rata muatan kolom</div>
+                <div class="metric-value">{{ result.mean_column_loading|default('-')|sig }} <small>g/m²</small></div>
+                <div class="metric-note">Rata-rata area terdampak</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="metric-card">
+                <div class="metric-label">Total massa erupsi</div>
+                <div class="metric-value">{{ result.total_erupted_mass|default('-')|sig }} <small>kg</small></div>
+                <div class="metric-note">MER × durasi erupsi</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-xl-8">
+            <div class="result-card map-card">
+                <div class="result-card-header">
+                    <div class="header-icon"><i class="bi bi-map"></i></div>
+                    <div>
+                        <h6>Peta Sebaran Abu</h6>
+                        <small>Muatan kolom (g/m²) & arah sebaran dari vent</small>
+                    </div>
+                </div>
+                <div class="map-container">
+                    <div id="map"></div>
+                    <div class="map-compass">
+                        <div class="compass-circle">
+                            <span class="compass-n">N</span>
+                            <span class="compass-e">E</span>
+                            <span class="compass-s">S</span>
+                            <span class="compass-w">W</span>
+                            <div class="compass-arrow" id="compassArrow"></div>
+                            <div class="compass-center"></div>
+                        </div>
+                        <div class="compass-label">{{ result.direction|default('-') }} · {{ result.azimuth|default('-')|sig }}°</div>
+                    </div>
+                    <div class="map-legend">
+                        <div class="legend-label">40+</div>
+                        <div class="legend-label">30</div>
+                        <div class="legend-label">20</div>
+                        <div class="legend-label">10</div>
+                        <div class="legend-label">0</div>
+                        <div class="legend-gradient"></div>
+                        <div class="legend-unit">Muatan kolom (g/m²)</div>
+                    </div>
+                    <div class="map-caption"><strong>Peta skematik</strong> — di platform: kontur pada OpenStreetMap</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="result-card mb-3">
+                <div class="result-card-header">
+                    <div class="header-icon"><i class="bi bi-activity"></i></div>
+                    <div><h6>Partisi Massa</h6></div>
+                </div>
+                <div class="info-body">
+                    {% for key, label, color in [
+                        ('airborne','Melayang (udara)','bar-green'),
+                        ('wet_deposition','Deposisi basah','bar-light'),
+                        ('dry_deposition','Deposisi kering','bar-yellow')
+                    ] %}
+                    {% set value = partitions[key]|default(0) %}
+                    <div class="partition-row">
+                        <span>{{ label }}</span>
+                        <div class="partition-track">
+                            <div class="partition-fill {{ color }}" style="width:{{ value }}%"></div>
+                        </div>
+                        <strong>{{ value|sig }}%</strong>
+                    </div>
+                    {% endfor %}
+                    <div class="closure-row">
+                        <i class="bi bi-check2"></i>
+                        <span>Kesetimbangan massa (closure):</span>
+                        <strong>{{ result.mass_closure|default('-')|sig }}{% if result.mass_closure is defined %}%{% endif %}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="result-card mb-3">
+                <div class="result-card-header">
+                    <div class="header-icon"><i class="bi bi-arrow-up-right"></i></div>
+                    <div><h6>Geometri Sebaran</h6></div>
+                </div>
+                <div class="info-body">
+                    <div class="info-row"><span>Arah (16 arah)</span><strong>{{ result.direction|default('-') }}</strong></div>
+                    <div class="info-row"><span>Azimut</span><strong>{{ result.azimuth|default('-')|sig }}{% if result.azimuth is defined %}°{% endif %}</strong></div>
+                    <div class="info-row"><span>Panjang sebaran</span><strong>{{ result.plume_length|default('-')|sig }} km</strong></div>
+                    <div class="info-row"><span>Lebar plume</span><strong>{{ result.plume_width|default('-')|sig }} km</strong></div>
+                    <div class="info-row"><span>Luas terdampak</span><strong>{{ result.affected_area|default('-')|sig }} km²</strong></div>
+                    <div class="info-row"><span>Stabilitas N</span><strong>{{ result.stability_n|default('-')|sig }} s⁻¹</strong></div>
+                    <div class="info-row"><span>Angin rata-rata v̄</span><strong>{{ result.mean_wind_speed|default('-')|sig }} m/s</strong></div>
+                </div>
+            </div>
+
+            <div class="result-card">
+                <div class="result-card-header">
+                    <div class="header-icon"><i class="bi bi-download"></i></div>
+                    <div><h6>Ekspor Hasil</h6></div>
+                </div>
+                <div class="export-body">
+                    <a href="{{ result.export_pdf_url|default('#') }}" class="btn btn-export" {% if not result.export_pdf_url is defined %}aria-disabled="true" onclick="return false"{% endif %}>
+                        <i class="bi bi-file-earmark-text"></i> Laporan PDF
+                    </a>
+                    <a href="{{ result.export_kmz_url|default('#') }}" class="btn btn-export" {% if not result.export_kmz_url is defined %}aria-disabled="true" onclick="return false"{% endif %}>
+                        <i class="bi bi-geo-alt"></i> KMZ
+                    </a>
+                    <a href="{{ result.export_csv_url|default('#') }}" class="btn btn-export" {% if not result.export_csv_url is defined %}aria-disabled="true" onclick="return false"{% endif %}>
+                        <i class="bi bi-table"></i> CSV
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mt-4">
+        <a href="/simulations/create" class="btn btn-back"><i class="bi bi-arrow-left me-1"></i> Kembali ke Konfigurasi Sumber</a>
+        <small class="result-muted fst-italic">Nilai pada halaman ini ditampilkan berdasarkan hasil perhitungan model dispersi VADiS.</small>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+.result-page{color:#212529;padding:20px 16px 32px;background:#fff;min-height:100vh}
+.result-muted{color:#6c757d;font-size:12px}
+.result-heading h4{font-size:20px;color:#212529}
+.status-badge{background:#d1e7dd;color:#0f5132;border-radius:30px;padding:8px 13px;font-size:12px;font-weight:600}
+.status-badge span{display:inline-block;width:7px;height:7px;border-radius:50%;background:#198754;margin-right:7px}
+.summary-bar{background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:13px 16px;color:#6c757d;font-size:12px;box-shadow:0 .125rem .25rem rgba(0,0,0,.075)}
+.summary-bar strong{color:#212529}
+.separator{padding:0 5px;color:#adb5bd}
+.btn-run{background:#0d6efd;color:#fff;border:1px solid #0d6efd;border-radius:6px;padding:10px 17px;font-size:12px;font-weight:600}
+.btn-run:hover{background:#0b5ed7;color:#fff}
+.metric-card{background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:16px 18px;min-height:105px;box-shadow:0 .125rem .25rem rgba(0,0,0,.075)}
+.metric-primary{border-left:3px solid #fd7e14}
+.metric-label{font-size:11px;color:#6c757d;margin-bottom:7px}
+.metric-value{font-size:23px;font-weight:700;color:#212529}
+.metric-value small{font-size:11px;font-weight:400;color:#6c757d}
+.metric-note{font-size:10px;color:#6c757d;margin-top:4px}
+.result-card{background:#fff;border:1px solid #dee2e6;border-radius:10px;overflow:hidden;box-shadow:0 .125rem .25rem rgba(0,0,0,.075)}
+.result-card-header{display:flex;align-items:center;gap:12px;padding:14px 17px;border-bottom:1px solid #dee2e6;min-height:61px;background:#fff}
+.result-card-header h6{font-size:13px;font-weight:600;margin:0;color:#212529}
+.result-card-header small{font-size:11px;color:#6c757d}
+.header-icon{width:33px;height:33px;border-radius:8px;background:#e7f1ff;color:#0d6efd;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.map-card{position:relative}
+.map-container{position:relative}
+#map{height:407px;width:100%;background:#e9ecef;z-index:1}
+.leaflet-container{font-family:inherit}
+.leaflet-control-attribution{font-size:9px!important}
+.map-compass{position:absolute;z-index:500;top:13px;left:13px;background:rgba(255,255,255,.95);border:1px solid #dee2e6;border-radius:10px;padding:10px;width:100px;text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.12)}
+.compass-circle{width:58px;height:58px;border:2px solid #e9ecef;border-radius:50%;margin:0 auto 5px;position:relative}
+.compass-circle span{position:absolute;font-size:7px;color:#6c757d}
+.compass-n{top:2px;left:26px}.compass-e{right:3px;top:24px}.compass-s{bottom:2px;left:27px}.compass-w{left:3px;top:24px}
+.compass-arrow{position:absolute;width:3px;height:28px;background:#dc3545;left:26px;top:13px;transform-origin:center 16px;transform:rotate(232deg);border-radius:3px}
+.compass-center{position:absolute;width:7px;height:7px;background:#fd7e14;border-radius:50%;left:23px;top:23px}
+.compass-label{font-size:9px;color:#495057;font-weight:600}
+.map-legend{position:absolute;z-index:500;right:13px;bottom:13px;background:rgba(255,255,255,.95);border:1px solid #dee2e6;border-radius:8px;padding:9px 8px;width:83px;display:grid;grid-template-columns:1fr 14px;gap:4px;box-shadow:0 1px 5px rgba(0,0,0,.12)}
+.legend-label{font-size:9px;color:#6c757d;text-align:right;line-height:15px}
+.legend-gradient{grid-column:2;grid-row:1/6;width:14px;height:92px;border-radius:4px;background:linear-gradient(to top,#fff1a6,#ffbd16,#ff7900,#e51d12)}
+.legend-unit{grid-column:1/3;font-size:8px;color:#6c757d;text-align:center;writing-mode:vertical-rl;transform:rotate(180deg);position:absolute;left:3px;top:25px;height:75px}
+.map-caption{position:absolute;bottom:13px;left:13px;z-index:500;background:rgba(255,255,255,.95);border:1px solid #dee2e6;border-radius:6px;padding:6px 9px;color:#495057;font-size:10px}
+.info-body{padding:10px 17px}
+.info-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #dee2e6;font-size:11px}
+.info-row:last-child{border-bottom:0}
+.info-row span{color:#6c757d}
+.info-row strong{color:#212529;text-align:right;font-weight:600}
+.partition-row{display:grid;grid-template-columns:120px 1fr 36px;gap:10px;align-items:center;margin:9px 0;font-size:11px;color:#343a40}
+.partition-row strong{text-align:right;font-size:11px}
+.partition-track{height:11px;border-radius:20px;background:#e9ecef;overflow:hidden}
+.partition-fill{height:100%;border-radius:20px}
+.bar-green{background:#299d6c}.bar-light{background:#48c995}.bar-yellow{background:#f5a400}.bar-red{background:#dc3545}
+.closure-row{border-top:1px solid #dee2e6;margin-top:14px;padding-top:13px;display:flex;align-items:center;gap:9px;font-size:11px;color:#6c757d}
+.closure-row i,.closure-row strong{color:#198754}
+.closure-row strong{margin-left:auto}
+.export-body{padding:15px;display:flex;gap:8px;flex-wrap:wrap}
+.btn-export{background:#fff;border:1px solid #dee2e6;color:#343a40;border-radius:6px;padding:10px 12px;font-size:11px;font-weight:600}
+.btn-export:hover{background:#f8f9fa;color:#0d6efd;border-color:#0d6efd}
+.btn-export[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+.btn-back{background:#fff;border:1px solid #ced4da;color:#343a40;border-radius:6px;padding:11px 16px;font-size:12px;font-weight:600}
+.btn-back:hover{background:#f8f9fa;color:#0d6efd;border-color:#0d6efd}
+.volcano-marker{background:transparent;border:0}
+.volcano-marker div{width:25px;height:25px;border-radius:50%;background:#dc3545;border:2px solid white;box-shadow:0 1px 7px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#fff;color:#212529}
+.leaflet-popup-content{font-size:11px;line-height:1.7}
+@media(max-width:767px){.result-page{padding:15px 8px}.result-heading h4{font-size:18px}#map{height:407px}.summary-bar{align-items:flex-start}.partition-row{grid-template-columns:105px 1fr 35px}.export-body{gap:6px}.btn-export{padding:9px}}
+</style>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded",function(){
+    const result={{ result|tojson }};
+    const lat=Number(result.location?.latitude);
+    const lon=Number(result.location?.longitude);
+    if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
+
+    const map=L.map("map",{preferCanvas:true,zoomControl:true}).setView([lat,lon],8);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:'&copy; OpenStreetMap',maxZoom:19}).addTo(map);
+
+    const layers={
+        trajectory:L.featureGroup().addTo(map),
+        particle:L.featureGroup().addTo(map),
+        deposition:L.featureGroup().addTo(map),
+        grid:L.featureGroup().addTo(map)
+    };
+
+    const colors={small:"#3388ff",medium:"#ffc107",large:"#dc3545"};
+    const esc=v=>String(v??"-").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const cls=p=>String(p?.particle_class||p?.class||"medium").toLowerCase();
+    const color=p=>p?.color||colors[cls(p)]||"#6c757d";
+    const popup=(title,p)=>`<strong>${esc(title)}</strong><br>${Object.entries(p||{}).map(([k,v])=>`${esc(k)}: ${esc(v)}`).join("<br>")}`;
+
+    const icon=L.divIcon({className:"volcano-marker",html:"<div>V</div>",iconSize:[25,25],iconAnchor:[12,12]});
+    L.marker([lat,lon],{icon}).bindPopup(`<strong>${esc(result.volcano_name||"Sumber Erupsi")}</strong><br>Latitude: ${lat}<br>Longitude: ${lon}<br>Elevasi: ${esc(result.location.altitude)} m`).addTo(layers.particle);
+
+    const features=name=>result.geojson?.[name]?.features||[];
+
+    features("trajectory").forEach(f=>{
+        const c=f.geometry?.coordinates||[];
+        const points=c.filter(x=>Array.isArray(x)&&x.length>=2).map(x=>[Number(x[1]),Number(x[0])]);
+        if(points.length>=2)L.polyline(points,{color:color(f.properties),weight:2,opacity:.8}).bindPopup(popup("Lintasan Partikel",f.properties)).addTo(layers.trajectory);
+    });
+
+    features("points").forEach(f=>{
+        const c=f.geometry?.coordinates||[];
+        if(c.length>=2)L.circleMarker([Number(c[1]),Number(c[0])],{radius:3,color:color(f.properties),fillColor:color(f.properties),fillOpacity:.85}).bindPopup(popup("Partikel",f.properties)).addTo(layers.particle);
+    });
+
+    features("deposition").forEach(f=>{
+        const c=f.geometry?.coordinates||[];
+        if(c.length>=2)L.circleMarker([Number(c[1]),Number(c[0])],{radius:5,color:color(f.properties),fillColor:color(f.properties),fillOpacity:.85}).bindPopup(popup("Deposisi Abu",f.properties)).addTo(layers.deposition);
+    });
+
+    features("deposition_grid").forEach(f=>{
+        const c=f.geometry?.coordinates||[];
+        if(!c.length)return;
+        const polygons=f.geometry.type==="MultiPolygon"?c:[c];
+        polygons.forEach(poly=>{
+            const rings=poly.map(r=>r.map(x=>[Number(x[1]),Number(x[0])]));
+            L.polygon(rings,{color:"#555",weight:1,fillColor:color(f.properties),fillOpacity:.45}).bindPopup(popup("Grid Deposisi",f.properties)).addTo(layers.grid);
+        });
+    });
+
+    const bounds=L.latLngBounds([[lat,lon]]);
+    Object.values(layers).forEach(layer=>layer.eachLayer(item=>{
+        if(item.getBounds){const b=item.getBounds();if(b.isValid())bounds.extend(b)}
+        else if(item.getLatLng)bounds.extend(item.getLatLng());
+    }));
+    if(bounds.isValid()&&Object.values(layers).some(l=>l.getLayers().length))map.fitBounds(bounds.pad(.1),{maxZoom:11});
+
+    const azimuth=Number(result.azimuth);
+    if(Number.isFinite(azimuth))document.getElementById("compassArrow").style.transform=`rotate(${azimuth}deg)`;
+    setTimeout(()=>map.invalidateSize(),250);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,215 @@
+```html
+{% extends "layouts/base.html" %}
+{% block title %}Simulation Result - {{ simulation.name }}{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1">Simulation Result</h3>
+            <div class="text-muted">{{ simulation.name }}</div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/reports/{{ simulation.id }}/csv" class="btn btn-success">
+                <i class="bi bi-download me-1"></i> Export CSV
+            </a>
+            <a href="/dashboard" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold">Simulation Information</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <small class="text-muted">Simulation ID</small>
+                    <div class="fw-semibold">#{{ simulation.id }}</div>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted">Status</small>
+                    <div>
+                        {% if simulation.status == "completed" %}
+                            <span class="badge bg-success">Completed</span>
+                        {% elif simulation.status == "failed" %}
+                            <span class="badge bg-danger">Failed</span>
+                        {% elif simulation.status == "running" %}
+                            <span class="badge bg-primary">Running</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ simulation.status|title }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted">Created At</small>
+                    <div>{{ simulation.created_at.strftime("%d %b %Y %H:%M") if simulation.created_at else "-" }}</div>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted">Completed At</small>
+                    <div>{{ simulation.completed_at.strftime("%d %b %Y %H:%M") if simulation.completed_at else "-" }}</div>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted">Latitude</small>
+                    <div>{{ simulation.latitude }}</div>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted">Longitude</small>
+                    <div>{{ simulation.longitude }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold">Simulation Parameters</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <small class="text-muted">Altitude</small>
+                    <div>{{ "%.2f"|format(simulation.altitude) }} m</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Eruption Height</small>
+                    <div>{{ "%.2f"|format(simulation.eruption_height) }} m</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Eruption Duration</small>
+                    <div>{{ "%.2f"|format(simulation.eruption_duration) }} s</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Simulation Duration</small>
+                    <div>{{ "%.2f"|format(simulation.duration) }} s</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Timestep</small>
+                    <div>{{ simulation.timestep }} s</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Total Particles</small>
+                    <div>{{ "{:,}".format(simulation.total_particles) }}</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Particle Density</small>
+                    <div>{{ simulation.particle_density }} kg/m³</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">VEI</small>
+                    <div>{{ simulation.vei }}</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Grid Resolution</small>
+                    <div>{{ "%.2f"|format(simulation.grid_resolution) }} m</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Domain Radius</small>
+                    <div>{{ "%.2f"|format(simulation.domain_radius) }} m</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Precipitation</small>
+                    <div>{{ simulation.precipitation }} m</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">MER Method</small>
+                    <div>{{ simulation.mer_method }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if result %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold">Simulation Results</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="border rounded p-3 h-100">
+                        <small class="text-muted">Mass Eruption Rate (MER)</small>
+                        <h4 class="mt-2 mb-0">{{ "{:,.4f}".format(result.mer) if result.mer is not none else "-" }}</h4>
+                        <small class="text-muted">kg/s</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="border rounded p-3 h-100">
+                        <small class="text-muted">Total Mass</small>
+                        <h4 class="mt-2 mb-0">{{ "{:,.4f}".format(result.total_mass) if result.total_mass is not none else "-" }}</h4>
+                        <small class="text-muted">kg</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="border rounded p-3 h-100">
+                        <small class="text-muted">Deposited Mass</small>
+                        <h4 class="mt-2 mb-0">{{ "{:,.4f}".format(result.deposited_mass) if result.deposited_mass is not none else "-" }}</h4>
+                        <small class="text-muted">kg</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="border rounded p-3 h-100">
+                        <small class="text-muted">Airborne Mass</small>
+                        <h4 class="mt-2 mb-0">{{ "{:,.4f}".format(result.airborne_mass) if result.airborne_mass is not none else "-" }}</h4>
+                        <small class="text-muted">kg</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="border rounded p-3 h-100">
+                        <small class="text-muted">Grid Deposited Mass</small>
+                        <h4 class="mt-2 mb-0">{{ "{:,.4f}".format(result.grid_deposited_mass) if result.grid_deposited_mass is not none else "-" }}</h4>
+                        <small class="text-muted">kg</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="border rounded p-3 h-100">
+                        <small class="text-muted">Mass Error</small>
+                        <h4 class="mt-2 mb-0">{{ "{:,.8f}".format(result.mass_error) if result.mass_error is not none else "-" }}</h4>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Mass Balance Validation</span>
+                {% if result.validation_status is sameas true %}
+                    <span class="badge bg-success">Valid</span>
+                {% elif result.validation_status is sameas false %}
+                    <span class="badge bg-danger">Invalid</span>
+                {% else %}
+                    <span class="badge bg-secondary">Not Available</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Generated Result Files</div>
+        <div class="card-body">
+            <div class="list-group list-group-flush">
+                {% for label,path in [
+                    ("Trajectory GeoJSON",result.trajectory_path),
+                    ("Particles GeoJSON",result.particles_path),
+                    ("Deposition GeoJSON",result.deposition_path),
+                    ("Deposition Grid GeoJSON",result.deposition_grid_path)
+                ] %}
+                <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <span>{{ label }}</span>
+                    {% if path %}
+                        <span class="badge bg-success">Available</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Not Available</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% elif simulation.status == "failed" %}
+    <div class="alert alert-danger">
+        <h5 class="alert-heading">Simulation Failed</h5>
+        {{ simulation.error_message or "No error details available." }}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        Hasil simulasi belum tersedia.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+```

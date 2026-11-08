@@ -1,0 +1,29 @@
+# Dataset dan hasil runtime
+/data/*
+!/data/landcover/
+!/data/terrain/
+!/data/meteorology/
+!/data/simulations/
+
+/data/landcover/**
+/data/terrain/**
+/data/meteorology/**
+/data/simulations/**
+
+# Folder kosong
+!/data/landcover/.gitkeep
+!/data/terrain/.gitkeep
+!/data/meteorology/.gitkeep
+!/data/simulations/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Environment
+.env
+.env.*
+!.env.example
+.venv/
+venv/
