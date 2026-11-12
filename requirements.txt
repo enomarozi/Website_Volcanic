@@ -11,3 +11,4 @@ xarray
 cfgrib
 eccodes
 pytest
+rasterio

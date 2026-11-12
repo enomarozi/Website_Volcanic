@@ -37,7 +37,44 @@ class EruptionService:
         if pressure > 2000: pressure /= 100.0
         return temp*(self.reference_pressure/pressure)**((self.gamma-1.0)/self.gamma)
 
-    def calculate(self, atmospheric_profile, eruption_height, eruption_duration):
+    @staticmethod
+    def _interpolate(levels, altitude, key):
+        z = float(altitude)
+
+        if z < levels[0]["z"] or z > levels[-1]["z"]:
+            raise ValueError(
+                f"Altitude {z} m outside atmospheric profile coverage."
+            )
+
+        for a, b in zip(levels[:-1], levels[1:]):
+            if a["z"] <= z <= b["z"]:
+                if b["z"] == a["z"]:
+                    return a[key]
+
+                fraction = (z - a["z"]) / (b["z"] - a["z"])
+
+                return (
+                    a[key] +
+                    fraction * (b[key] - a[key])
+                )
+
+        return levels[-1][key]
+
+
+    @staticmethod
+    def _column_levels(levels, bottom, top):
+        result = [bottom]
+
+        result.extend(
+            x["z"] for x in levels
+            if bottom < x["z"] < top
+        )
+
+        result.append(top)
+
+        return sorted(set(result))
+
+    def calculate(self, atmospheric_profile, eruption_height, eruption_duration, vent_altitude=0.0):
         h=float(eruption_height); duration=float(eruption_duration)
         if not math.isfinite(h) or h<=0 or not math.isfinite(duration) or duration<=0:
             raise ValueError("Eruption height and duration must be positive.")
@@ -56,7 +93,12 @@ class EruptionService:
         wind_speeds=[math.hypot(x["u"],x["v"]) for x in levels]
         mean_wind=sum(wind_speeds)/len(wind_speeds)
         # Direction uses mean horizontal components through the eruption column (z <= H).
-        direction_levels=[x for x in levels if x["z"]<=h]
+        column_top = float(vent_altitude) + h
+
+        direction_levels = [
+            x for x in levels
+            if float(vent_altitude) <= x["z"] <= column_top
+        ]
         if not direction_levels: direction_levels=levels
         mean_u=sum(x["u"] for x in direction_levels)/len(direction_levels)
         mean_v=sum(x["v"] for x in direction_levels)/len(direction_levels)
@@ -77,6 +119,27 @@ class EruptionService:
         wind_term=self.beta**2*n**2*mean_wind*h**3/6.0
         mer=math.pi*self.rho_air/reduced_gravity*(buoyancy+wind_term)
         total_mass=mer*duration
+        
+        print("\n========== ERUPTION MER VALIDATION ==========")
+        print(f"Eruption height     : {h:.2f} m")
+        print(f"Eruption duration   : {duration:.2f} s")
+        print(f"Profile levels      : {len(levels)}")
+        print(f"Mean wind speed     : {mean_wind:.6f} m/s")
+        print(f"Theta mean          : {theta_mean}")
+        print(f"dTheta/dz           : {dtheta_dz:.9f} K/m")
+        print(f"Brunt-Vaisala N     : {n:.9f} 1/s")
+        print(f"Ambient temperature : {surface_temp:.4f} K")
+        print(f"Source temperature  : {self.source_temperature:.4f} K")
+        print(f"Source density      : {rho_source:.6f} kg/m3")
+        print(f"Reduced gravity     : {reduced_gravity:.6f} m/s2")
+        print(f"Buoyancy term       : {buoyancy:.6e}")
+        print(f"Wind term           : {wind_term:.6e}")
+        print(f"Buoyancy contribution: {100 * buoyancy / (buoyancy + wind_term):.4f}%")
+        print(f"Wind contribution   : {100 * wind_term / (buoyancy + wind_term):.4f}%")
+        print(f"MER                 : {mer:.6e} kg/s")
+        print(f"Total erupted mass  : {total_mass:.6e} kg")
+        print("============================================\n")
+
         if not all(math.isfinite(x) and x>0 for x in (n,mer,total_mass)):
             raise ValueError("MER calculation returned an invalid result; check meteorological profile and parameters.")
         return {"eruption_height":h,"eruption_duration":duration,"mean_wind_speed":mean_wind,

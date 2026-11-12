@@ -1,4 +1,4 @@
-
+import numpy as np
 import os
 import math
 import fcntl
@@ -6,7 +6,9 @@ import urllib.request
 from pathlib import Path
 from threading import RLock
 from collections import OrderedDict
-
+import geopandas as gpd
+from shapely.geometry import Point
+from shapely.ops import unary_union
 import rasterio
 from rasterio.errors import RasterioError
 
@@ -29,6 +31,12 @@ class TerrainService:
         self.timeout = timeout
         self.datasets = OrderedDict()
         self.lock = RLock()
+        land_file = base_dir / "data/terrain/natural_earth/ne_10m_land.shp"
+        if not land_file.is_file():
+            raise FileNotFoundError(f"Mask daratan tidak ditemukan: {land_file}")
+
+        land = gpd.read_file(land_file).to_crs("EPSG:4326")
+        self.land_geometry = unary_union(land.geometry)
 
     @staticmethod
     def tile_name(lat, lon):
@@ -56,10 +64,16 @@ class TerrainService:
                 return src.count >= 1 and src.width > 0 and src.height > 0 and src.crs is not None
         except (RasterioError, OSError):
             return False
-
+    def is_land(self, lat, lon):
+        return self.land_geometry.covers(Point(float(lon), float(lat)))
     def _download_tile(self, tile):
         if tile not in self.available_tiles:
-            raise FileNotFoundError(f"Tile {tile} tidak tersedia dalam katalog Copernicus.")
+            raise FileNotFoundError(
+                f"Copernicus GLO-30 tidak menyediakan tile {tile}. "
+                "Koordinat kemungkinan berada di wilayah laut atau "
+                "di luar cakupan dataset. Elevasi tidak boleh diasumsikan 0 "
+                "tanpa validasi daratan/laut."
+            )
 
         target = self.tile_path(tile)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -122,23 +136,53 @@ class TerrainService:
                 old_dataset.close()
 
             return dataset
-
+    def tile_available(self, lat, lon):
+        tile = self.tile_name(lat, lon)
+        path = self.tile_path(tile)
+        return tile in self.available_tiles or (
+            path.is_file() and self._valid_raster(path)
+        )
     def elevation_at(self, lat, lon):
         lat, lon = float(lat), float(lon)
         tile = self.tile_name(lat, lon)
-        dataset = self._get_dataset(tile)
+
+        if not self.is_land(lat, lon):
+            return {
+                "elevation": 0.0,
+                "latitude": lat,
+                "longitude": lon,
+                "terrain_raster": None,
+                "terrain_tile": tile,
+                "dem_source": "Sea level (Natural Earth land mask)",
+                "resolution": None,
+                "crs": "EPSG:4326",
+                "status": "ocean"
+            }
+
+        if not self.tile_available(lat, lon):
+            raise FileNotFoundError(
+                f"Tile DEM {tile} tidak tersedia untuk daratan ({lat}, {lon})."
+            )
+
+        tile, dataset = self._find_dataset(lat, lon)
 
         if not (
             dataset.bounds.left <= lon <= dataset.bounds.right
             and dataset.bounds.bottom <= lat <= dataset.bounds.top
         ):
-            raise ValueError(f"Koordinat berada di luar cakupan tile {tile}.")
+            raise ValueError(
+                f"Koordinat di luar cakupan DEM {tile}: ({lat}, {lon})."
+            )
 
-        value = next(dataset.sample([(lon, lat)]))[0]
-        if dataset.nodata is not None and value == dataset.nodata:
-            raise ValueError(f"Nilai elevasi NoData pada koordinat {lat}, {lon}.")
+        value = next(dataset.sample([(lon, lat)], masked=True))[0]
+
+        if np.ma.is_masked(value):
+            raise ValueError(
+                f"Nilai DEM NoData pada daratan ({lat}, {lon})."
+            )
 
         elevation = float(value)
+
         if not math.isfinite(elevation):
             raise ValueError("Nilai elevasi DEM tidak valid.")
 
@@ -153,7 +197,44 @@ class TerrainService:
             "crs": str(dataset.crs),
             "status": "available"
         }
+    def _find_dataset(self, lat, lon):
+        tile = self.tile_name(lat, lon)
+        dataset = self._get_dataset(tile)
 
+        if (
+            dataset.bounds.left <= lon < dataset.bounds.right
+            and dataset.bounds.bottom <= lat < dataset.bounds.top
+        ):
+            return tile, dataset
+
+        offsets = [
+            (0, -1), (0, 1),
+            (-1, 0), (1, 0),
+            (-1, -1), (-1, 1),
+            (1, -1), (1, 1)
+        ]
+
+        for dlat, dlon in offsets:
+            neighbor_lat = math.floor(lat) + dlat + 0.5
+            neighbor_lon = math.floor(lon) + dlon + 0.5
+            neighbor_tile = self.tile_name(neighbor_lat, neighbor_lon)
+
+            if neighbor_tile not in self.available_tiles:
+                continue
+
+            neighbor_dataset = self._get_dataset(neighbor_tile)
+
+            if (
+                neighbor_dataset.bounds.left <= lon < neighbor_dataset.bounds.right
+                and neighbor_dataset.bounds.bottom <= lat < neighbor_dataset.bounds.top
+            ):
+                return neighbor_tile, neighbor_dataset
+
+        raise ValueError(
+            f"Tidak ada raster DEM yang mencakup koordinat "
+            f"latitude={lat:.10f}, longitude={lon:.10f}. "
+            f"Tile utama={tile}."
+        )
     def get_tile_status(self, lat, lon):
         tile = self.tile_name(lat, lon)
         path = self.tile_path(tile)

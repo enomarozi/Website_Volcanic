@@ -30,12 +30,9 @@ class SurfaceMeteorologyService:
     @staticmethod
     def _seconds_between(start, end):
         try:
-            return max(0.0, float((end - start).total_seconds()))
-        except Exception:
-            try:
-                return max(0.0, float((end - start) / np.timedelta64(1, "s")))
-            except Exception:
-                return 0.0
+            return float((end-start).total_seconds())
+        except (AttributeError, TypeError):
+            return float((end-start)/np.timedelta64(1,"s"))
 
     @staticmethod
     def _normalize_units(units):
@@ -83,7 +80,7 @@ class SurfaceMeteorologyService:
                 raise ValueError("Jumlah waktu Surface Instant dan Accumulated berbeda.")
 
             for i, (t1, t2) in enumerate(zip(instant_times, accum_times)):
-                if self._seconds_between(t1, t2) != 0:
+                if abs(self._seconds_between(t1,t2))>0.001:
                     raise ValueError(f"Valid time Instant dan Accumulated berbeda pada indeks {i}.")
 
             reference_times = self._times(accum.variables["time"]) if "time" in accum.variables else []
@@ -107,11 +104,36 @@ class SurfaceMeteorologyService:
                 "precipitation_units": getattr(tp_variable, "units", "m"),
                 "precipitation_availability": getattr(tp_variable, "availability", "unknown"),
                 "heat_flux_units": getattr(accum.variables["sshf"], "units", ""),
+                "tp_start_step": self._read_variable(accum.variables["tp_start_step"]),
+                "tp_end_step": self._read_variable(accum.variables["tp_end_step"]),
             }
 
         self._validate()
         return self.data
 
+    def precipitation_index_at_elapsed(self, elapsed_seconds):
+        data = self.load()
+        elapsed = float(elapsed_seconds)
+
+        times = data["times"]
+        if not times:
+            raise ValueError("Dataset Surface tidak memiliki waktu valid.")
+
+        offsets = np.array([
+            self._seconds_between(times[0], t)
+            for t in times
+        ], dtype=float)
+
+        if elapsed < 0 or elapsed > offsets[-1]:
+            raise ValueError("Waktu di luar cakupan Surface GFS.")
+
+        if elapsed == offsets[-1]:
+            return len(offsets) - 1
+
+        return min(
+            int(np.searchsorted(offsets, elapsed, side="right")),
+            len(offsets) - 1
+        )
     def _validate(self):
         data = self.data
 
@@ -201,31 +223,37 @@ class SurfaceMeteorologyService:
             "precipitation_area_min_mm": float(np.min(valid)) if valid.size else None,
         }
 
-    def precipitation_rate(self, time_index, lat_index, lon_index, interval_seconds):
-        data = self.load()
-        current = float(data["precipitation"][time_index, lat_index, lon_index])
+    def precipitation_rate(self,time_index,lat_index,lon_index,interval_seconds):
+        data=self.load()
+        tp=float(data["precipitation"][time_index,lat_index,lon_index])
+        start=float(data["tp_start_step"][time_index])
+        end=float(data["tp_end_step"][time_index])
 
-        if not np.isfinite(current):
+        if not all(np.isfinite(v) for v in (tp,start,end)) or end<=start:
             return None
 
-        current = max(current, 0.0)
+        duration=end-start
 
-        if time_index > 0:
-            previous = float(data["precipitation"][time_index - 1, lat_index, lon_index])
-            if not np.isfinite(previous):
-                return None
-            current = max(current - max(previous, 0.0), 0.0)
+        if time_index>0:
+            previous_start=float(data["tp_start_step"][time_index-1])
+            previous_end=float(data["tp_end_step"][time_index-1])
+            previous_tp=float(data["precipitation"][time_index-1,lat_index,lon_index])
 
-        interval_hours = float(interval_seconds) / 3600.0
-        if interval_hours <= 0:
-            return None
+            if (
+                np.isfinite(previous_tp)
+                and np.isfinite(previous_start)
+                and np.isfinite(previous_end)
+                and abs(previous_start-start)<1e-6
+                and start<previous_end<end
+            ):
+                tp=max(tp-previous_tp,0.0)
+                duration=end-previous_end
 
-        return self.precipitation_m_to_mm(current) / interval_hours
+        return max(tp,0.0)*1000.0/duration
 
     def heat_flux_wm2(self, time_index, lat_index, lon_index, interval_seconds):
         data = self.load()
         value = float(data["heat_flux"][time_index, lat_index, lon_index])
-
         if not np.isfinite(value):
             return None
 
@@ -233,28 +261,36 @@ class SurfaceMeteorologyService:
         if units in ("wm^-2", "wm-2", "w/m^2"):
             return value
 
-        if interval_seconds <= 0:
-            return None
-
-        if time_index > 0:
-            previous = float(data["heat_flux"][time_index - 1, lat_index, lon_index])
-            if not np.isfinite(previous):
+        if units in ("jm^-2", "jm-2", "j/m^2"):
+            if interval_seconds <= 0:
                 return None
-            value -= previous
+            if time_index > 0:
+                previous = float(data["heat_flux"][time_index - 1, lat_index, lon_index])
+                if not np.isfinite(previous):
+                    return None
+                value -= previous
+            return value / interval_seconds
 
-        return value / float(interval_seconds)
+        raise ValueError(f"Unsupported heat flux units: {data['heat_flux_units']}")
 
     def time_index_at_elapsed(self, elapsed_seconds):
         data = self.load()
-        if not data["times"]:
+        times = data["times"]
+        if not times:
             raise ValueError("Dataset Surface tidak memiliki waktu valid.")
 
-        first = data["times"][0]
-        elapsed = [self._seconds_between(first, current) for current in data["times"]]
+        elapsed = np.array([
+            self._seconds_between(times[0], t) for t in times
+        ], dtype=float)
+        target = float(elapsed_seconds)
 
-        return int(np.abs(np.asarray(elapsed, dtype=float) - float(elapsed_seconds)).argmin())
+        if not np.isfinite(target) or target < 0 or target > elapsed[-1]:
+            raise ValueError("Waktu simulasi di luar cakupan Surface GFS.")
 
-    def surface_profile(self, latitude, longitude, time_index=0):
+        return int(np.searchsorted(elapsed, target, side="right") - 1)
+
+    def surface_profile(self, latitude, longitude, time_index=0,
+                    precipitation_index=None):
         data = self.load()
         if not data["times"]:
             raise ValueError("Dataset Surface tidak memiliki waktu valid.")
@@ -262,7 +298,10 @@ class SurfaceMeteorologyService:
         lat_index = int(np.abs(data["latitude"] - float(latitude)).argmin())
         lon_index = int(np.abs(data["longitude"] - float(longitude)).argmin())
         time_index = max(0, min(int(time_index), len(data["times"]) - 1))
+        rain_index = time_index if precipitation_index is None else int(precipitation_index)
 
+        if not 0 <= rain_index < len(data["times"]):
+            raise ValueError("Indeks presipitasi GFS tidak valid.")
         interval = self.interval_seconds(time_index)
 
         friction_velocity = float(data["friction_velocity"][time_index, lat_index, lon_index])
@@ -282,15 +321,19 @@ class SurfaceMeteorologyService:
             if np.isfinite(value):
                 rh = float(np.clip(value, 0.0, 100.0))
 
-        tp = float(data["precipitation"][time_index, lat_index, lon_index])
+        tp = float(data["precipitation"][rain_index, lat_index, lon_index])
         precipitation_available = bool(np.isfinite(tp))
         precipitation_mm = self.precipitation_m_to_mm(tp)
+
         precipitation_rate = self.precipitation_rate(
-            time_index, lat_index, lon_index, interval
+            rain_index,
+            lat_index,
+            lon_index,
+            self.interval_seconds(rain_index)
         )
 
         area_stats = self.precipitation_area(
-            time_index, lat_index, lon_index, radius=2
+            rain_index, lat_index, lon_index, radius=2
         )
 
         heat_flux = float(data["heat_flux"][time_index, lat_index, lon_index])

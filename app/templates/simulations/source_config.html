@@ -80,8 +80,15 @@
                     <input class="form-control" value="{{ altitude }}" readonly>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Tinggi Kolom Erupsi (m)</label>
-                    <input type="number" class="form-control" name="eruption_height" min="1" step="any" value="18000" required>
+                    <label class="form-label">Tinggi Kolom Erupsi (m AGL)</label>
+                    <input type="number" class="form-control" id="eruption_height" name="eruption_height" min="1" step="any" value="18000" required > 
+                </div>
+                <div class="col-12">
+                    <div class="alert alert-info mb-0" id="heightInfo">
+                        <div>Elevasi vent: <strong id="ventHeightText">-</strong></div>
+                        <div>Tinggi erupsi: <strong id="eruptionHeightText">-</strong></div>
+                        <div>Puncak kolom AMSL: <strong id="columnTopText">-</strong></div>
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Durasi Erupsi (jam)</label>
@@ -127,4 +134,35 @@
         </button>
     </div>
 </form>
+<script>
+    const eruptionHeightInput = document.getElementById("eruption_height");
+    const ventAltitude = Number(
+        new URLSearchParams(window.location.search).get("altitude")
+    );
+
+    function updateColumnHeight() {
+        if (!eruptionHeightInput || !Number.isFinite(ventAltitude)) return;
+
+        const height = Number(eruptionHeightInput.value);
+        if (!Number.isFinite(height) || height <= 0) return;
+
+        const format = value => value.toLocaleString("id-ID", {
+            maximumFractionDigits: 2
+        });
+
+        document.getElementById("ventHeightText").textContent =
+            `${format(ventAltitude)} m AMSL`;
+
+        document.getElementById("eruptionHeightText").textContent =
+            `${format(height)} m AGL`;
+
+        document.getElementById("columnTopText").textContent =
+            `${format(ventAltitude + height)} m AMSL`;
+    }
+
+    if (eruptionHeightInput) {
+        eruptionHeightInput.addEventListener("input", updateColumnHeight);
+        updateColumnHeight();
+    }
+</script>
 {% endblock %}
