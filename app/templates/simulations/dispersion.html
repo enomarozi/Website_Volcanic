@@ -3,6 +3,16 @@
 {% block title %}Model Dispersi{% endblock %}
 {% block content %}
 
+{% set dataset_id = q.get('meteorology_dataset_id', '') %}
+{% set volcano = q.get('volcano', '') %}
+{% set latitude = q.get('latitude', '') %}
+{% set longitude = q.get('longitude', '') %}
+{% set altitude = q.get('altitude', '') %}
+{% set eruption_height = q.get('eruption_height', '18000') %}
+{% set eruption_duration = q.get('eruption_duration', '2') %}
+{% set time_index = q.get('time_index', '0') %}
+{% set total_particles = q.get('total_particles', '50000') %}
+
 <div class="py-4 border-bottom mb-4">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
@@ -11,116 +21,101 @@
                 Konfigurasi transport atmosfer, deposisi, dan simulasi abu vulkanik.
             </p>
         </div>
-        <span class="badge text-bg-primary px-3 py-2">
-            Tahap 4 dari 4
-        </span>
+        <span class="badge text-bg-primary px-3 py-2">Tahap 4 dari 4</span>
     </div>
     <div class="progress mt-3" style="height:6px">
         <div class="progress-bar" style="width:100%"></div>
     </div>
 </div>
 
+<div class="alert alert-danger d-none" id="simulationError" role="alert"></div>
+
 <form method="post" action="/simulations/run" id="dispersionForm">
-    <input type="hidden" name="meteorology_dataset_id" value="{{ q.get('meteorology_dataset_id', '') }}">
+    <input type="hidden" name="meteorology_dataset_id" value="{{ dataset_id }}">
     <input type="hidden" name="name" value="{{ q.get('name', '') }}">
-    <input type="hidden" name="volcano" value="{{ q.get('volcano', '') }}">
-    <input type="hidden" name="latitude" value="{{ q.get('latitude', '') }}">
-    <input type="hidden" name="longitude" value="{{ q.get('longitude', '') }}">
-    <input type="hidden" name="altitude" value="{{ q.get('altitude', '') }}">
-    <input type="hidden" name="eruption_height" value="{{ q.get('eruption_height', '18000') }}">
-    <input type="hidden" name="eruption_duration" value="{{ q.get('eruption_duration', '2') }}">
-    <input type="hidden" name="time_index" value="{{ q.get('time_index', '0') }}">
+    <input type="hidden" name="volcano" value="{{ volcano }}">
+    <input type="hidden" name="latitude" value="{{ latitude }}">
+    <input type="hidden" name="longitude" value="{{ longitude }}">
+    <input type="hidden" name="altitude" value="{{ altitude }}">
+    <input type="hidden" name="eruption_height" value="{{ eruption_height }}">
+    <input type="hidden" name="eruption_duration" value="{{ eruption_duration }}">
+    <input type="hidden" name="time_index" value="{{ time_index }}">
 
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white py-3">
             <div class="fw-semibold">01 · Transport Atmosfer</div>
             <small class="text-muted">
-                Durasi transport dan timestep berdasarkan Formula M6.
+                Durasi transport dan parameter turbulensi Lagrangian.
             </small>
         </div>
 
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label">
+                    <label class="form-label" for="duration">
                         Durasi Simulasi (jam)
                     </label>
-                    <input
-                        type="number"
-                        class="form-control"
-                        name="duration"
-                        min="0.01"
-                        step="any"
-                        value="6"
-                        required
-                    >
+                    <input type="number" class="form-control"
+                           id="duration" name="duration"
+                           min="0.01" step="any"
+                           value="{{ q.get('duration', '6') }}" required>
+                    <div class="form-text">
+                        Durasi transport partikel setelah erupsi dimulai.
+                    </div>
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label">
-                        Timestep Model (Δt)
-                    </label>
-                    <div class="form-control bg-light">
-                        71,25 detik
-                    </div>
+                    <label class="form-label">Timestep Model (Δt)</label>
+                    <input class="form-control" id="timestep" readonly
+                           value="Memuat parameter backend...">
                     <div class="form-text">
-                        Dihitung oleh backend berdasarkan Modul M6.
+                        Dihitung oleh backend berdasarkan konfigurasi M6.
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-3 mb-0">
+                <div class="fw-semibold mb-3">
+                    Formula M6 — Turbulensi Lagrangian
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        Ventilation Rate:
+                        <strong id="ventilationRate">—</strong>
+                    </div>
+                    <div class="col-md-6">
+                        Kecepatan Angin PBL:
+                        <strong id="pblWind">—</strong>
+                    </div>
+                    <div class="col-md-6">
+                        Mixing Height:
+                        <strong id="mixingHeight">—</strong>
+                    </div>
+                    <div class="col-md-6">
+                        Sigma u:
+                        <strong id="sigmaU">—</strong>
+                    </div>
+                    <div class="col-md-6">
+                        Tau L:
+                        <strong id="tauL">—</strong>
+                    </div>
+                    <div class="col-md-6">
+                        Delta t:
+                        <strong id="deltaT">—</strong>
                     </div>
                 </div>
 
-                <div class="col-12">
-                    <div class="alert alert-info mb-0">
-                        <div class="fw-semibold mb-2">
-                            Formula M6 — Turbulensi Lagrangian
-                        </div>
+                <hr>
 
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                Ventilation Rate:
-                                <strong>4000 m²/s</strong>
-                            </div>
-                            <div class="col-md-6">
-                                Kecepatan Angin PBL:
-                                <strong>7,018 m/s</strong>
-                            </div>
-                            <div class="col-md-6">
-                                Mixing Height:
-                                <strong>569,96 m</strong>
-                            </div>
-                            <div class="col-md-6">
-                                Sigma u:
-                                <strong>1,20 m/s</strong>
-                            </div>
-                            <div class="col-md-6">
-                                Tau L:
-                                <strong>71,25 detik</strong>
-                            </div>
-                            <div class="col-md-6">
-                                Delta t:
-                                <strong>71,25 detik</strong>
-                            </div>
-                        </div>
+                <div class="small">h = VR / V_PBL</div>
+                <div class="small">σu = 0,6 × w*</div>
+                <div class="small">τL = 0,15 × h / σu</div>
+                <div class="small">Δt = faktor × τL</div>
 
-                        <hr>
-
-                        <div class="small">
-                            h = VR / V_PBL
-                        </div>
-                        <div class="small">
-                            σu = 0,6 × w*
-                        </div>
-                        <div class="small">
-                            τL = 0,15 × h / σu
-                        </div>
-                        <div class="small">
-                            Δt = 1,0 × τL
-                        </div>
-
-                        <div class="small text-muted mt-2">
-                            Parameter model mengikuti Kerangka Formulasi M6.
-                            Timestep tidak dapat diubah melalui input simulasi.
-                        </div>
-                    </div>
+                <div class="small text-muted mt-2">
+                    Parameter mengikuti konfigurasi backend.
+                    Nilai timestep tidak dapat diubah melalui halaman ini.
                 </div>
             </div>
         </div>
@@ -128,32 +123,33 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white py-3">
-            <div class="fw-semibold">
-                02 · Parameter Partikel
-            </div>
+            <div class="fw-semibold">02 · Parameter Partikel</div>
             <small class="text-muted">
-                Jumlah paket virtual yang digunakan dalam simulasi.
+                Jumlah paket partikel virtual yang digunakan dalam simulasi.
             </small>
         </div>
 
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label">
+                    <label class="form-label" for="total_particles">
                         Total Partikel
                     </label>
-                    <input
-                        type="number"
-                        class="form-control"
-                        name="total_particles"
-                        min="1"
-                        step="1"
-                        value="500"
-                        required
-                    >
+                    <input type="number" class="form-control"
+                           id="total_particles" name="total_particles"
+                           min="1" max="1000000" step="1"
+                           value="{{ total_particles }}" required>
                     <div class="form-text">
-                        Nilai awal 500 untuk pengujian.
-                        Acuan kerangka menggunakan 50.000 partikel.
+                        Mengikuti nilai dari Konfigurasi Sumber.
+                        Jumlah lebih besar membutuhkan waktu komputasi lebih lama.
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Densitas Partikel (kg/m³)</label>
+                    <input class="form-control" value="2500" readonly>
+                    <div class="form-text">
+                        Mengikuti konfigurasi ParticleService.
                     </div>
                 </div>
             </div>
@@ -162,196 +158,228 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white py-3">
-            <div class="fw-semibold">
-                03 · Ringkasan Konfigurasi
-            </div>
+            <div class="fw-semibold">03 · Ringkasan Konfigurasi</div>
         </div>
 
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
                     <small class="text-muted">Nama Simulasi</small>
-                    <div class="fw-semibold">
-                        {{ q.get('name', '-') }}
-                    </div>
+                    <div class="fw-semibold">{{ q.get('name', '—') }}</div>
                 </div>
-
                 <div class="col-md-6">
                     <small class="text-muted">Gunung Api</small>
-                    <div class="fw-semibold">
-                        {{ q.get('volcano', '-') }}
-                    </div>
+                    <div class="fw-semibold">{{ volcano }}</div>
                 </div>
-
                 <div class="col-md-6">
                     <small class="text-muted">Koordinat Vent</small>
-                    <div class="fw-semibold">
-                        {{ q.get('latitude', '-') }},
-                        {{ q.get('longitude', '-') }}
-                    </div>
+                    <div class="fw-semibold">{{ latitude }}, {{ longitude }}</div>
                 </div>
-
                 <div class="col-md-6">
                     <small class="text-muted">Elevasi Vent</small>
-                    <div class="fw-semibold">
-                        {{ q.get('altitude', '-') }} m
-                    </div>
+                    <div class="fw-semibold">{{ altitude }} m AMSL</div>
                 </div>
-
                 <div class="col-md-6">
-                    <small class="text-muted">
-                        Tinggi Kolom Erupsi
-                    </small>
-                    <div class="fw-semibold">
-                        {{ q.get('eruption_height', '-') }} m
-                    </div>
+                    <small class="text-muted">Tinggi Kolom Erupsi</small>
+                    <div class="fw-semibold">{{ eruption_height }} m AGL</div>
                 </div>
-
                 <div class="col-md-6">
-                    <small class="text-muted">
-                        Durasi Erupsi
-                    </small>
-                    <div class="fw-semibold">
-                        {{ q.get('eruption_duration', '-') }} jam
-                    </div>
+                    <small class="text-muted">Durasi Erupsi</small>
+                    <div class="fw-semibold">{{ eruption_duration }} jam</div>
                 </div>
-
                 <div class="col-md-6">
-                    <small class="text-muted">
-                        Dataset Meteorologi
-                    </small>
-                    <div class="fw-semibold">
-                        ID {{ q.get('meteorology_dataset_id', '-') }}
-                    </div>
+                    <small class="text-muted">Dataset Meteorologi</small>
+                    <div class="fw-semibold">ID {{ dataset_id }}</div>
                 </div>
-
                 <div class="col-md-6">
-                    <small class="text-muted">
-                        Metode Timestep
-                    </small>
-                    <div class="fw-semibold">
-                        M6 — Lagrangian
-                    </div>
+                    <small class="text-muted">Time Index</small>
+                    <div class="fw-semibold">{{ time_index }}</div>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted">Metode MER</small>
+                    <div class="fw-semibold">Degruyter</div>
+                </div>
+                <div class="col-md-6">
+                    <small class="text-muted">Metode Timestep</small>
+                    <div class="fw-semibold">M6 — Lagrangian</div>
                 </div>
             </div>
 
             <div class="alert alert-info mt-3 mb-0">
                 Parameter atmosfer, MER, turbulensi, dan deposisi
-                diproses oleh backend berdasarkan kerangka formulasi
-                dan dataset meteorologi yang dipilih.
+                diproses oleh backend berdasarkan dataset meteorologi terpilih.
             </div>
         </div>
     </div>
 
     <div class="d-flex justify-content-between align-items-center gap-2 mb-4">
-        <a
-            href="/source-config?{{ q|urlencode }}"
-            class="btn btn-outline-secondary"
-        >
-            <i class="bi bi-arrow-left me-1"></i>
-            Previous
+        <a href="/source-config?{{ q|urlencode }}"
+           class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Previous
         </a>
 
-        <button
-            type="submit"
-            class="btn btn-success"
-            id="runSimulationButton"
-            {% if not q.get('meteorology_dataset_id') %}disabled{% endif %}
-        >
+        <button type="submit" class="btn btn-success"
+                id="runSimulationButton">
             <i class="bi bi-play-fill me-1"></i>
             Jalankan Simulasi
         </button>
     </div>
-
-    <div
-        id="simulationError"
-        class="alert alert-danger d-none"
-        role="alert"
-    ></div>
 </form>
+
+<div class="modal fade" id="simulationProgressModal"
+     data-bs-backdrop="static" data-bs-keyboard="false"
+     tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-4">
+                <div class="spinner-border text-primary mb-3"
+                     style="width:3rem;height:3rem" role="status"></div>
+                <h5>Simulasi Sedang Diproses</h5>
+                <p class="text-muted mb-2">
+                    Perhitungan transport, turbulensi, dan deposisi sedang berjalan.
+                </p>
+                <div class="small text-muted">
+                    Jangan tutup halaman sampai hasil simulasi ditampilkan.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("dispersionForm");
+    const button = document.getElementById("runSimulationButton");
     const errorBox = document.getElementById("simulationError");
-    const submitButton = document.getElementById("runSimulationButton");
-    const originalButton = submitButton.innerHTML;
 
-    form.addEventListener("submit", async (event) => {
-        event.preventDefault();
+    const datasetId = form.elements["meteorology_dataset_id"].value;
+    const latitude = form.elements["latitude"].value;
+    const longitude = form.elements["longitude"].value;
+    const timeIndex = form.elements["time_index"].value;
 
-        if (submitButton.disabled) return;
+    let submitting = false;
 
-        errorBox.classList.add("d-none");
-        errorBox.textContent = "";
+    function formatNumber(value, digits = 2) {
+        const number = Number(value);
+        if (value === null || value === undefined || value === "" ||
+            !Number.isFinite(number)) return "—";
 
-        submitButton.disabled = true;
-        submitButton.innerHTML = `
-            <span class="spinner-border spinner-border-sm me-2"></span>
-            Memproses Simulasi...
-        `;
+        return number.toLocaleString("id-ID", {
+            maximumFractionDigits: digits
+        });
+    }
 
+    function setText(id, value, unit = "") {
+        document.getElementById(id).textContent =
+            value === null || value === undefined || value === ""
+                ? "—" : formatNumber(value, 3) + unit;
+    }
+
+    function showError(message) {
+        errorBox.textContent = message;
+        errorBox.classList.remove("d-none");
+        errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    async function loadM6() {
         try {
-            const response = await fetch(form.action, {
-                method: "POST",
-                body: new FormData(form),
-                credentials: "same-origin"
+            const params = new URLSearchParams({
+                latitude: latitude,
+                longitude: longitude,
+                time_index: timeIndex
             });
 
-            if (!response.ok) {
-                const contentType = response.headers.get("content-type") || "";
-                let message = `Simulasi gagal (HTTP ${response.status}).`;
-
-                if (contentType.includes("application/json")) {
-                    const data = await response.json();
-
-                    if (typeof data.detail === "string") {
-                        message = data.detail;
-                    } else if (Array.isArray(data.detail)) {
-                        message = data.detail
-                            .map(item => item.msg || "Parameter tidak valid")
-                            .join("; ");
-                    }
-                } else {
-                    const html = await response.text();
-                    const doc = new DOMParser().parseFromString(
-                        html, "text/html"
-                    );
-                    const alert = doc.querySelector(".alert-danger");
-
-                    if (alert) {
-                        message = alert.textContent.trim();
-                    }
-                }
-
-                throw new Error(message);
-            }
-
-            const html = await response.text();
-            const doc = new DOMParser().parseFromString(
-                html, "text/html"
+            const response = await fetch(
+                `/simulations/meteorology/${encodeURIComponent(datasetId)}?${params}`
             );
 
-            if (!doc.querySelector("body")) {
-                throw new Error("Respons hasil simulasi tidak valid.");
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Gagal memuat parameter M6.");
             }
 
-            document.open();
-            document.write(html);
-            document.close();
+            const p = data.pbl || {};
 
+            setText("ventilationRate", p.ventilation_rate, " m²/s");
+            setText("pblWind", p.mean_pbl_wind, " m/s");
+            setText("mixingHeight", p.mixing_height, " m");
+            setText("sigmaU", p.sigma_u, " m/s");
+            setText("tauL", p.tau_l, " s");
+            setText("deltaT", p.timestep, " s");
+
+            const timestep = document.getElementById("timestep");
+            timestep.value = p.timestep !== null &&
+                p.timestep !== undefined
+                ? formatNumber(p.timestep, 3) + " detik"
+                : "Dihitung saat simulasi";
         } catch (error) {
-            errorBox.textContent = error.message;
-            errorBox.classList.remove("d-none");
-            errorBox.scrollIntoView({
-                behavior: "smooth",
-                block: "center"
-            });
-        } finally {
-            submitButton.disabled = false;
-            submitButton.innerHTML = originalButton;
+            document.getElementById("timestep").value =
+                "Dihitung saat simulasi";
+            console.error("M6 loading error:", error);
+        }
+    }
+
+    form.addEventListener("submit", event => {
+        if (submitting) {
+            event.preventDefault();
+            return;
+        }
+
+        errorBox.classList.add("d-none");
+
+        const requiredFields = [
+            "meteorology_dataset_id", "name", "volcano",
+            "latitude", "longitude", "altitude",
+            "eruption_height", "eruption_duration",
+            "time_index", "duration", "total_particles"
+        ];
+
+        for (const field of requiredFields) {
+            if (String(form.elements[field]?.value ?? "").trim() === "") {
+                event.preventDefault();
+                showError(`Parameter ${field} belum tersedia.`);
+                return;
+            }
+        }
+
+        const duration = Number(form.elements["duration"].value);
+        const eruptionDuration = Number(form.elements["eruption_duration"].value);
+        const particles = Number(form.elements["total_particles"].value);
+        const index = Number(form.elements["time_index"].value);
+
+        if (!Number.isFinite(duration) || duration <= 0 ||
+            !Number.isFinite(eruptionDuration) || eruptionDuration <= 0) {
+            event.preventDefault();
+            showError("Durasi simulasi dan erupsi harus lebih besar dari nol.");
+            return;
+        }
+
+        if (!Number.isInteger(particles) || particles < 1 || particles > 1000000) {
+            event.preventDefault();
+            showError("Jumlah partikel harus antara 1 dan 1.000.000.");
+            return;
+        }
+
+        if (!Number.isInteger(index) || index < 0) {
+            event.preventDefault();
+            showError("Time index meteorologi tidak valid.");
+            return;
+        }
+
+        submitting = true;
+        button.disabled = true;
+        button.innerHTML =
+            '<span class="spinner-border spinner-border-sm me-2"></span> Memproses...';
+
+        const modalElement = document.getElementById("simulationProgressModal");
+
+        if (window.bootstrap && bootstrap.Modal) {
+            bootstrap.Modal.getOrCreateInstance(modalElement).show();
         }
     });
+
+    loadM6();
 });
 </script>
 

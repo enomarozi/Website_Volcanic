@@ -76,16 +76,9 @@
                         </div>
                         <div class="compass-label">{{ result.direction|default('-') }} · {{ result.azimuth|default('-')|sig }}°</div>
                     </div>
-                    <div class="map-legend">
-                        <div class="legend-label">40+</div>
-                        <div class="legend-label">30</div>
-                        <div class="legend-label">20</div>
-                        <div class="legend-label">10</div>
-                        <div class="legend-label">0</div>
-                        <div class="legend-gradient"></div>
-                        <div class="legend-unit">Muatan kolom (g/m²)</div>
+                    <div class="map-caption">
+                        <strong>Hasil Simulasi</strong> — Visualisasi GeoJSON pada OpenStreetMap
                     </div>
-                    <div class="map-caption"><strong>Peta skematik</strong> — di platform: kontur pada OpenStreetMap</div>
                 </div>
             </div>
         </div>
@@ -228,70 +221,288 @@
 </style>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-document.addEventListener("DOMContentLoaded",function(){
-    const result={{ result|tojson }};
-    const lat=Number(result.location?.latitude);
-    const lon=Number(result.location?.longitude);
-    if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
+document.addEventListener("DOMContentLoaded", () => {
+    const result = {{ result|tojson }};
 
-    const map=L.map("map",{preferCanvas:true,zoomControl:true}).setView([lat,lon],8);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:'&copy; OpenStreetMap',maxZoom:19}).addTo(map);
+    const latitude = Number(result.location?.latitude);
+    const longitude = Number(result.location?.longitude);
 
-    const layers={
-        trajectory:L.featureGroup().addTo(map),
-        particle:L.featureGroup().addTo(map),
-        deposition:L.featureGroup().addTo(map),
-        grid:L.featureGroup().addTo(map)
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        console.error("Koordinat sumber erupsi tidak valid.");
+        return;
+    }
+
+    const MAX_PARTICLES = 5000;
+    const MAX_TRAJECTORIES = 2000;
+    const MAX_DEPOSITION_POINTS = 5000;
+
+    const renderer = L.canvas({
+        padding: 0.5
+    });
+
+    const map = L.map("map", {
+        preferCanvas: true,
+        renderer: renderer,
+        zoomControl: true
+    }).setView([latitude, longitude], 8);
+
+    const osm = L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            attribution: "&copy; OpenStreetMap contributors",
+            maxZoom: 19
+        }
+    ).addTo(map);
+
+    const trajectoryLayer = L.featureGroup();
+    const particleLayer = L.featureGroup();
+    const depositionLayer = L.featureGroup();
+    const depositionGridLayer = L.featureGroup();
+
+    const volcanoLayer = L.layerGroup().addTo(map);
+
+    const colors = {
+        small: "#3388ff",
+        medium: "#ffc107",
+        large: "#dc3545"
     };
 
-    const colors={small:"#3388ff",medium:"#ffc107",large:"#dc3545"};
-    const esc=v=>String(v??"-").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-    const cls=p=>String(p?.particle_class||p?.class||"medium").toLowerCase();
-    const color=p=>p?.color||colors[cls(p)]||"#6c757d";
-    const popup=(title,p)=>`<strong>${esc(title)}</strong><br>${Object.entries(p||{}).map(([k,v])=>`${esc(k)}: ${esc(v)}`).join("<br>")}`;
+    function escapeHTML(value) {
+        return String(value ?? "—").replace(
+            /[&<>"']/g,
+            character => ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;"
+            })[character]
+        );
+    }
 
-    const icon=L.divIcon({className:"volcano-marker",html:"<div>V</div>",iconSize:[25,25],iconAnchor:[12,12]});
-    L.marker([lat,lon],{icon}).bindPopup(`<strong>${esc(result.volcano_name||"Sumber Erupsi")}</strong><br>Latitude: ${lat}<br>Longitude: ${lon}<br>Elevasi: ${esc(result.location.altitude)} m`).addTo(layers.particle);
+    function particleColor(properties = {}) {
+        const category = String(
+            properties.particle_class ||
+            properties.class ||
+            "medium"
+        ).toLowerCase();
 
-    const features=name=>result.geojson?.[name]?.features||[];
+        return colors[category] || "#6c757d";
+    }
 
-    features("trajectory").forEach(f=>{
-        const c=f.geometry?.coordinates||[];
-        const points=c.filter(x=>Array.isArray(x)&&x.length>=2).map(x=>[Number(x[1]),Number(x[0])]);
-        if(points.length>=2)L.polyline(points,{color:color(f.properties),weight:2,opacity:.8}).bindPopup(popup("Lintasan Partikel",f.properties)).addTo(layers.trajectory);
+    function popup(title, properties = {}) {
+        const rows = Object.entries(properties)
+            .slice(0, 15)
+            .map(([key, value]) =>
+                `${escapeHTML(key)}: ${escapeHTML(value)}`
+            );
+
+        return `<strong>${escapeHTML(title)}</strong><br>${rows.join("<br>")}`;
+    }
+
+    function sampleFeatures(features, limit) {
+        if (!Array.isArray(features)) return [];
+
+        if (features.length <= limit) {
+            return features;
+        }
+
+        const result = [];
+        const step = features.length / limit;
+
+        for (let i = 0; i < limit; i++) {
+            result.push(features[Math.floor(i * step)]);
+        }
+
+        return result;
+    }
+
+    function getFeatures(name) {
+        const collection = result.geojson?.[name];
+
+        return Array.isArray(collection?.features)
+            ? collection.features
+            : [];
+    }
+
+    const volcanoIcon = L.divIcon({
+        className: "volcano-marker",
+        html: "<div>V</div>",
+        iconSize: [25, 25],
+        iconAnchor: [12, 12]
     });
 
-    features("points").forEach(f=>{
-        const c=f.geometry?.coordinates||[];
-        if(c.length>=2)L.circleMarker([Number(c[1]),Number(c[0])],{radius:3,color:color(f.properties),fillColor:color(f.properties),fillOpacity:.85}).bindPopup(popup("Partikel",f.properties)).addTo(layers.particle);
+    L.marker([latitude, longitude], {
+        icon: volcanoIcon
+    }).bindPopup(
+        `<strong>${escapeHTML(result.volcano_name || "Sumber Erupsi")}</strong>` +
+        `<br>Latitude: ${latitude}` +
+        `<br>Longitude: ${longitude}` +
+        `<br>Elevasi: ${escapeHTML(result.location?.altitude)} m`
+    ).addTo(volcanoLayer);
+
+    const trajectories = sampleFeatures(
+        getFeatures("trajectory"),
+        MAX_TRAJECTORIES
+    );
+
+    trajectories.forEach(feature => {
+        const coordinates = feature.geometry?.coordinates;
+
+        if (!Array.isArray(coordinates)) return;
+
+        const points = coordinates
+            .filter(c =>
+                Array.isArray(c) &&
+                c.length >= 2 &&
+                Number.isFinite(Number(c[0])) &&
+                Number.isFinite(Number(c[1]))
+            )
+            .map(c => [Number(c[1]), Number(c[0])]);
+
+        if (points.length < 2) return;
+
+        L.polyline(points, {
+            renderer: renderer,
+            color: particleColor(feature.properties),
+            weight: 1.5,
+            opacity: 0.65,
+            interactive: false
+        }).addTo(trajectoryLayer);
     });
 
-    features("deposition").forEach(f=>{
-        const c=f.geometry?.coordinates||[];
-        if(c.length>=2)L.circleMarker([Number(c[1]),Number(c[0])],{radius:5,color:color(f.properties),fillColor:color(f.properties),fillOpacity:.85}).bindPopup(popup("Deposisi Abu",f.properties)).addTo(layers.deposition);
+    const particles = sampleFeatures(
+        getFeatures("points"),
+        MAX_PARTICLES
+    );
+
+    particles.forEach(feature => {
+        const c = feature.geometry?.coordinates;
+
+        if (!Array.isArray(c) || c.length < 2) return;
+
+        const lat = Number(c[1]);
+        const lon = Number(c[0]);
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        L.circleMarker([lat, lon], {
+            renderer: renderer,
+            radius: 2,
+            stroke: false,
+            fillColor: particleColor(feature.properties),
+            fillOpacity: 0.75,
+            interactive: false
+        }).addTo(particleLayer);
     });
 
-    features("deposition_grid").forEach(f=>{
-        const c=f.geometry?.coordinates||[];
-        if(!c.length)return;
-        const polygons=f.geometry.type==="MultiPolygon"?c:[c];
-        polygons.forEach(poly=>{
-            const rings=poly.map(r=>r.map(x=>[Number(x[1]),Number(x[0])]));
-            L.polygon(rings,{color:"#555",weight:1,fillColor:color(f.properties),fillOpacity:.45}).bindPopup(popup("Grid Deposisi",f.properties)).addTo(layers.grid);
+    const depositionPoints = sampleFeatures(
+        getFeatures("deposition"),
+        MAX_DEPOSITION_POINTS
+    );
+
+    depositionPoints.forEach(feature => {
+        const c = feature.geometry?.coordinates;
+
+        if (!Array.isArray(c) || c.length < 2) return;
+
+        const lat = Number(c[1]);
+        const lon = Number(c[0]);
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        L.circleMarker([lat, lon], {
+            renderer: renderer,
+            radius: 3,
+            stroke: false,
+            fillColor: particleColor(feature.properties),
+            fillOpacity: 0.8,
+            interactive: false
+        }).addTo(depositionLayer);
+    });
+
+    const depositionGrid = getFeatures("deposition_grid");
+
+    depositionGrid.forEach(feature => {
+        if (!feature.geometry) return;
+
+        L.geoJSON(feature, {
+            renderer: renderer,
+            style: {
+                color: "#555",
+                weight: 0.5,
+                fillColor: particleColor(feature.properties),
+                fillOpacity: 0.4
+            },
+            onEachFeature: (f, layer) => {
+                layer.bindPopup(
+                    popup("Grid Deposisi", f.properties)
+                );
+            }
+        }).addTo(depositionGridLayer);
+    });
+
+    depositionGridLayer.addTo(map);
+    trajectoryLayer.addTo(map);
+
+    L.control.layers(
+        {
+            "OpenStreetMap": osm
+        },
+        {
+            "Sumber Erupsi": volcanoLayer,
+            "Lintasan Partikel": trajectoryLayer,
+            "Partikel": particleLayer,
+            "Titik Deposisi": depositionLayer,
+            "Grid Deposisi": depositionGridLayer
+        },
+        {
+            collapsed: false
+        }
+    ).addTo(map);
+
+    const bounds = L.latLngBounds([
+        [latitude, longitude]
+    ]);
+
+    [trajectoryLayer, depositionGridLayer].forEach(group => {
+        group.eachLayer(layer => {
+            if (typeof layer.getBounds === "function") {
+                const b = layer.getBounds();
+                if (b.isValid()) bounds.extend(b);
+            } else if (typeof layer.getLatLng === "function") {
+                bounds.extend(layer.getLatLng());
+            }
         });
     });
 
-    const bounds=L.latLngBounds([[lat,lon]]);
-    Object.values(layers).forEach(layer=>layer.eachLayer(item=>{
-        if(item.getBounds){const b=item.getBounds();if(b.isValid())bounds.extend(b)}
-        else if(item.getLatLng)bounds.extend(item.getLatLng());
-    }));
-    if(bounds.isValid()&&Object.values(layers).some(l=>l.getLayers().length))map.fitBounds(bounds.pad(.1),{maxZoom:11});
+    if (bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.1), {
+            maxZoom: 11
+        });
+    }
 
-    const azimuth=Number(result.azimuth);
-    if(Number.isFinite(azimuth))document.getElementById("compassArrow").style.transform=`rotate(${azimuth}deg)`;
-    setTimeout(()=>map.invalidateSize(),250);
+    const compassArrow = document.getElementById("compassArrow");
+    const azimuth = Number(result.azimuth);
+
+    if (compassArrow && result.azimuth != null &&
+        Number.isFinite(azimuth)) {
+        compassArrow.style.transform = `rotate(${azimuth}deg)`;
+    }
+
+    setTimeout(() => map.invalidateSize(), 250);
+
+    console.info("GeoJSON visualization:", {
+        trajectories: trajectories.length,
+        particles: particles.length,
+        depositionPoints: depositionPoints.length,
+        depositionGrid: depositionGrid.length
+    });
 });
 </script>
+
 {% endblock %}

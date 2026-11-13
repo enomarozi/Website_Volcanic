@@ -748,6 +748,95 @@ class MeteorologyService:
             )
         }
 
+    
+    def wind_components_at_altitude(self, latitude, longitude, altitude, time_index=0):
+        profile = self.bilinear_profile(latitude, longitude, time_index)
+
+        z = np.asarray(profile["altitude"], dtype=float)
+        u = np.asarray(profile["u"], dtype=float)
+        v = np.asarray(profile["v"], dtype=float)
+
+        valid = np.isfinite(z) & np.isfinite(u) & np.isfinite(v)
+
+        if np.count_nonzero(valid) < 2:
+            raise ValueError("GFS wind profile has fewer than two valid levels.")
+
+        z = z[valid]
+        u = u[valid]
+        v = v[valid]
+
+        order = np.argsort(z)
+        z = z[order]
+        u = u[order]
+        v = v[order]
+
+        if np.any(np.diff(z) <= 0):
+            raise ValueError("GFS altitude levels must be distinct.")
+
+        target = float(altitude)
+
+        if not math.isfinite(target):
+            raise ValueError("Invalid particle altitude.")
+
+        if target < z[0]:
+            target = float(z[0])
+        elif target > z[-1]:
+            if target - z[-1] > 100.0:
+                raise ValueError(
+                    f"Particle altitude {target:.2f} m exceeds "
+                    f"meteorological profile maximum {z[-1]:.2f} m by more than 100 m."
+                )
+            target = float(z[-1])
+
+        return {
+            "u": float(np.interp(target, z, u)),
+            "v": float(np.interp(target, z, v)),
+            "w": 0.0
+        }
+
+    def wind_components_at_elapsed(self, latitude, longitude, altitude, elapsed_seconds):
+        times = self.time_information()["elapsed_seconds"]
+        target = float(elapsed_seconds)
+
+        if not math.isfinite(target):
+            raise ValueError("Invalid meteorological elapsed time.")
+
+        if target < times[0] or target > times[-1]:
+            raise ValueError("Time is outside meteorological coverage.")
+
+        upper = int(np.searchsorted(times, target, side="left"))
+
+        if upper == 0:
+            lower = upper = 0
+        elif upper >= len(times):
+            lower = upper = len(times) - 1
+        elif times[upper] == target:
+            lower = upper
+        else:
+            lower = upper - 1
+
+        a = self.wind_components_at_altitude(
+            latitude, longitude, altitude, lower
+        )
+
+        if lower == upper:
+            return a
+
+        b = self.wind_components_at_altitude(
+            latitude, longitude, altitude, upper
+        )
+
+        fraction = (
+            (target - times[lower]) /
+            (times[upper] - times[lower])
+        )
+
+        return {
+            "u": float(a["u"] + (b["u"] - a["u"]) * fraction),
+            "v": float(a["v"] + (b["v"] - a["v"]) * fraction),
+            "w": 0.0
+        }
+
     def wind_at_altitude(
         self, latitude, longitude,
         altitude, time_index=0

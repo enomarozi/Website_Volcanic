@@ -9,26 +9,36 @@ class ParticleSimulationService:
         self.particle = particle
         self.rng = np.random.default_rng(seed)
 
-    def velocity(self,latitude,longitude,altitude,time_index):
-        lat,lon,alt=float(latitude),float(longitude),float(altitude)
-        if not all(math.isfinite(x) for x in (lat,lon,alt)):
+
+    def velocity(self, latitude, longitude, altitude, time_index):
+        lat = float(latitude)
+        lon = float(longitude)
+        alt = float(altitude)
+
+        if not all(math.isfinite(x) for x in (lat, lon, alt)):
             raise ValueError("Invalid particle coordinates.")
-        if not -90<=lat<=90:
+
+        if not -90 <= lat <= 90:
             raise ValueError("Latitude outside valid range.")
 
-        if isinstance(time_index,(float,np.floating)):
-            wind=self.meteorology.wind_at_elapsed(lat,lon,max(0.0,alt),time_index)
+        if isinstance(time_index, (float, np.floating)):
+            wind = self.meteorology.wind_components_at_elapsed(
+                lat, lon, max(0.0, alt), time_index
+            )
         else:
-            wind=self.meteorology.wind_at_altitude(lat,lon,max(0.0,alt),int(time_index))
+            wind = self.meteorology.wind_components_at_altitude(
+                lat, lon, max(0.0, alt), int(time_index)
+            )
 
-        u,v=wind.get("u"),wind.get("v")
-        w=wind.get("w",wind.get("vertical_wind",0.0))
-        if u is None or v is None:
-            raise ValueError("GFS wind components u/v are missing.")
+        result = {
+            "u": float(wind["u"]),
+            "v": float(wind["v"]),
+            "w": float(wind["w"])
+        }
 
-        result={"u":float(u),"v":float(v),"w":float(w)}
         if not all(math.isfinite(x) for x in result.values()):
             raise ValueError("GFS wind components contain non-finite values.")
+
         return result
 
     @staticmethod

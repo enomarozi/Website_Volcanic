@@ -1,6 +1,7 @@
 
 from pathlib import Path
 import numpy as np
+from functools import lru_cache
 from netCDF4 import Dataset, num2date
 
 
@@ -289,9 +290,11 @@ class SurfaceMeteorologyService:
 
         return int(np.searchsorted(elapsed, target, side="right") - 1)
 
+    
     def surface_profile(self, latitude, longitude, time_index=0,
-                    precipitation_index=None):
+                        precipitation_index=None):
         data = self.load()
+
         if not data["times"]:
             raise ValueError("Dataset Surface tidak memiliki waktu valid.")
 
@@ -302,6 +305,20 @@ class SurfaceMeteorologyService:
 
         if not 0 <= rain_index < len(data["times"]):
             raise ValueError("Indeks presipitasi GFS tidak valid.")
+
+        result = self._surface_profile_cached(
+            lat_index, lon_index, time_index, rain_index
+        )
+        return {
+            **result,
+            "precipitation_area_grid": [
+                row.copy() for row in result["precipitation_area_grid"]
+            ]
+        }
+
+    @lru_cache(maxsize=8192)
+    def _surface_profile_cached(self, lat_index, lon_index, time_index, rain_index):
+        data = self.load()
         interval = self.interval_seconds(time_index)
 
         friction_velocity = float(data["friction_velocity"][time_index, lat_index, lon_index])
@@ -366,4 +383,5 @@ class SurfaceMeteorologyService:
         }
 
     def close(self):
+        self._surface_profile_cached.cache_clear()
         self.data = None

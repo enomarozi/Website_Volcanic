@@ -303,3 +303,118 @@ class DepositionService:
             "friction_velocity": u_star,
             "roughness_length": z0
         }
+    
+    def event_rates(
+        self,
+        particle,
+        altitude,
+        friction_velocity=None,
+        roughness_length=None,
+        rain_rate=None,
+        rh=None
+    ):
+        altitude = self._finite(altitude, "Altitude AGL")
+        vs = self._finite(
+            particle.get("settling_velocity", 0.0),
+            "Settling velocity"
+        )
+        rain = self._finite(
+            0.0 if rain_rate is None else rain_rate,
+            "Rain rate"
+        )
+
+        if altitude < 0 or vs < 0 or rain < 0:
+            raise ValueError("Parameter deposisi tidak valid.")
+
+        wet_rate = self.scavenging_coefficient(rain, rh)
+        dry_rate = 0.0
+        vd = 0.0
+        ra = None
+        rs = None
+        u_star = None
+        z0 = None
+
+        if altitude <= self.layer_height:
+            u_star = self._finite(
+                self.friction_velocity
+                if friction_velocity is None
+                else friction_velocity,
+                "Friction velocity"
+            )
+            z0 = self._finite(
+                self.roughness_length
+                if roughness_length is None
+                else roughness_length,
+                "Roughness length"
+            )
+
+            ra = self.aerodynamic_resistance(
+                friction_velocity=u_star,
+                roughness_length=z0
+            )
+            rs = self.surface_resistance(
+                vs,
+                friction_velocity=u_star
+            )["resistance"]
+            vd = self.dry_deposition_velocity(vs, ra, rs)
+            dry_rate = vd / self.layer_height
+
+        return {
+            "dry_rate": dry_rate,
+            "wet_rate": wet_rate,
+            "total_rate": dry_rate + wet_rate,
+            "vd": vd,
+            "ra": ra,
+            "rs": rs,
+            "friction_velocity": u_star,
+            "roughness_length": z0
+        }
+
+    def sample_event(self, rates, dt, rng):
+        dt = self._finite(dt, "Time step")
+        if dt < 0:
+            raise ValueError("Time step tidak boleh negatif.")
+
+        dry_rate = self._finite(rates["dry_rate"], "Dry rate")
+        wet_rate = self._finite(rates["wet_rate"], "Wet rate")
+        total_rate = dry_rate + wet_rate
+
+        if dry_rate < 0 or wet_rate < 0:
+            raise ValueError("Laju deposisi tidak boleh negatif.")
+
+        result = {
+            **rates,
+            "deposited": False,
+            "mechanism": None,
+            "event_dt": None,
+            "pdry": self.deposition_probability(dry_rate, dt),
+            "pwet": self.deposition_probability(wet_rate, dt),
+            "probability": self.deposition_probability(total_rate, dt)
+        }
+
+        if total_rate == 0 or dt == 0:
+            return result
+
+        u = float(rng.random())
+
+        if not math.isfinite(u) or not 0 <= u < 1:
+            raise ValueError("RNG harus menghasilkan nilai [0,1).")
+
+        event_dt = -math.log1p(-u) / total_rate
+
+        if event_dt >= dt:
+            return result
+
+        mechanism = (
+            "wet"
+            if float(rng.random()) < wet_rate / total_rate
+            else "dry"
+        )
+
+        result.update({
+            "deposited": True,
+            "mechanism": mechanism,
+            "event_dt": event_dt
+        })
+
+        return result

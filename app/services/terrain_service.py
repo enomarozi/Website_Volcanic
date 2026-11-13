@@ -10,6 +10,7 @@ import geopandas as gpd
 from shapely.geometry import Point
 from shapely.ops import unary_union
 import rasterio
+from shapely.prepared import prep
 from rasterio.errors import RasterioError
 
 
@@ -37,6 +38,7 @@ class TerrainService:
 
         land = gpd.read_file(land_file).to_crs("EPSG:4326")
         self.land_geometry = unary_union(land.geometry)
+        self.prepared_land_geometry = prep(self.land_geometry)
 
     @staticmethod
     def tile_name(lat, lon):
@@ -65,7 +67,9 @@ class TerrainService:
         except (RasterioError, OSError):
             return False
     def is_land(self, lat, lon):
-        return self.land_geometry.covers(Point(float(lon), float(lat)))
+        return self.prepared_land_geometry.covers(
+            Point(float(lon), float(lat))
+        )
     def _download_tile(self, tile):
         if tile not in self.available_tiles:
             raise FileNotFoundError(
@@ -159,10 +163,13 @@ class TerrainService:
                 "status": "ocean"
             }
 
-        if not self.tile_available(lat, lon):
-            raise FileNotFoundError(
-                f"Tile DEM {tile} tidak tersedia untuk daratan ({lat}, {lon})."
-            )
+        if tile not in self.available_tiles:
+            path = self.tile_path(tile)
+
+            if not path.is_file():
+                raise FileNotFoundError(
+                    f"Tile DEM {tile} tidak tersedia untuk daratan ({lat}, {lon})."
+                )
 
         tile, dataset = self._find_dataset(lat, lon)
 

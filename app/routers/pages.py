@@ -72,11 +72,10 @@ def get_dataset_or_none(db, dataset_id, user):
     return dataset
 
 
+
 def get_simulation_service(
     dataset: MeteorologyDataset,
-    total_particles=50000,
-    particle_density=BACKEND_PARTICLE_DENSITY,
-    mer_method=BACKEND_MER_METHOD
+    config: SimulationConfig
 ):
     upper_air = BASE_DIR / dataset.upper_air_path
     surface_instant = (
@@ -98,12 +97,20 @@ def get_simulation_service(
                 str(surface_accum)
             )
 
-        turbulence = TurbulenceService()
-        eruption = EruptionService(mer_method=mer_method)
+        turbulence = TurbulenceService(
+            ventilation_rate=config.ventilation_rate,
+            pbl_wind_speed=config.mean_pbl_wind,
+            convective_velocity=config.convective_velocity,
+            timestep_factor=config.timestep_factor
+        )
+
+        eruption = EruptionService(
+            mer_method=config.mer_method
+        )
 
         particle = ParticleService(
-            total_particles=total_particles,
-            particle_density=particle_density
+            total_particles=config.total_particles,
+            particle_density=config.particle_density
         )
 
         particle_simulation = ParticleSimulationService(
@@ -111,7 +118,10 @@ def get_simulation_service(
             turbulence
         )
 
-        deposition = DepositionService()
+        deposition = DepositionService(
+            rain_a=config.scavenging_a,
+            rain_b=config.scavenging_b
+        )
 
         dispersion = DispersionService(
             particle_simulation=particle_simulation,
@@ -122,6 +132,9 @@ def get_simulation_service(
             landcover=landcover_service,
             terrain=terrain_service
         )
+
+        dispersion.precipitation_source = config.precipitation_source
+        dispersion.precipitation_rate = config.precipitation_rate
 
         concentration = ConcentrationService()
         geojson = GeoJSONService()
@@ -145,6 +158,7 @@ def get_simulation_service(
         raise
 
 
+
 def dataset_grid_settings(meteorology, latitude, longitude):
     meteorology.load()
 
@@ -161,12 +175,35 @@ def dataset_grid_settings(meteorology, latitude, longitude):
             "latitude dan longitude."
         )
 
+    source_lat = float(latitude)
+    source_lon = float(longitude)
+
+    if not all(math.isfinite(x) for x in (source_lat, source_lon)):
+        raise ValueError("Koordinat gunung api tidak valid.")
+
+    lat_min = min(latitudes)
+    lat_max = max(latitudes)
+    lon_min = min(longitudes)
+    lon_max = max(longitudes)
+
+    if not lat_min <= source_lat <= lat_max:
+        raise ValueError(
+            f"Latitude {source_lat} berada di luar cakupan "
+            f"dataset ({lat_min} sampai {lat_max})."
+        )
+
+    if not lon_min <= source_lon <= lon_max:
+        raise ValueError(
+            f"Longitude {source_lon} berada di luar cakupan "
+            f"dataset ({lon_min} sampai {lon_max})."
+        )
+
     lat_step = abs(latitudes[1] - latitudes[0])
     lon_step = abs(longitudes[1] - longitudes[0])
 
     lat_resolution = lat_step * 111320.0
     cos_lat = max(
-        abs(math.cos(math.radians(float(latitude)))),
+        abs(math.cos(math.radians(source_lat))),
         1e-8
     )
     lon_resolution = lon_step * 111320.0 * cos_lat
@@ -175,28 +212,23 @@ def dataset_grid_settings(meteorology, latitude, longitude):
         lat_resolution + lon_resolution
     ) / 2.0
 
-    source_lat = float(latitude)
-    source_lon = float(longitude)
-
-    lat_min = min(latitudes)
-    lat_max = max(latitudes)
-    lon_min = min(longitudes)
-    lon_max = max(longitudes)
-
     north_distance = abs(source_lat - lat_max) * 111320.0
     south_distance = abs(source_lat - lat_min) * 111320.0
     east_distance = abs(source_lon - lon_max) * 111320.0 * cos_lat
     west_distance = abs(source_lon - lon_min) * 111320.0 * cos_lat
 
-    domain_radius = max(
-        min(
-            north_distance,
-            south_distance,
-            east_distance,
-            west_distance
-        ),
-        grid_resolution
+    domain_radius = min(
+        north_distance,
+        south_distance,
+        east_distance,
+        west_distance
     )
+
+    if domain_radius <= 0:
+        raise ValueError(
+            "Koordinat berada pada batas dataset meteorologi. "
+            "Diperlukan cakupan grid yang lebih luas."
+        )
 
     return {
         "grid_resolution": float(grid_resolution),
@@ -558,6 +590,7 @@ async def create_simulation(
     return RedirectResponse(url, 303)
 
 
+
 @router.get("/simulations/meteorology/{dataset_id}")
 async def simulation_meteorology(
     dataset_id: int,
@@ -591,8 +624,8 @@ async def simulation_meteorology(
         meteorology = MeteorologyService(
             str(BASE_DIR / dataset.upper_air_path)
         )
-        info = meteorology.time_information()
 
+        info = meteorology.time_information()
         times = info.get("times", [])
 
         if not times:
@@ -609,6 +642,29 @@ async def simulation_meteorology(
         grid = dataset_grid_settings(
             meteorology, latitude, longitude
         )
+
+        upper_air = meteorology.atmospheric_profile(
+            latitude, longitude, time_index
+        )
+
+        profile = []
+
+        for level in upper_air["profile"]:
+            u = float(level["u"])
+            v = float(level["v"])
+
+            profile.append({
+                **level,
+                "wind_speed": math.hypot(u, v)
+            })
+
+        upper_air["profile"] = profile
+
+        upper_air["latitude"] = float(latitude)
+        upper_air["longitude"] = float(longitude)
+        upper_air["time_index"] = int(time_index)
+        upper_air["time"] = str(times[time_index])
+        upper_air["level_count"] = len(profile)
 
         surface_profile = None
         surface_info = None
@@ -640,6 +696,29 @@ async def simulation_meteorology(
                 "has_heat_flux": True
             }
 
+        turbulence_parameters = TurbulenceService().parameters()
+
+        pbl = {
+            "ventilation_rate": turbulence_parameters.get(
+                "ventilation_rate"
+            ),
+            "mean_pbl_wind": turbulence_parameters.get(
+                "pbl_wind_speed"
+            ),
+            "convective_velocity": turbulence_parameters.get(
+                "convective_velocity"
+            ),
+            "mixing_height": turbulence_parameters.get(
+                "mixing_height"
+            ),
+            "tau_l": turbulence_parameters.get(
+                "tau_l"
+            ),
+            "timestep": turbulence_parameters.get(
+                "timestep"
+            )
+        }
+
         return JSONResponse({
             "dataset_id": dataset.id,
             "name": dataset.name,
@@ -655,8 +734,10 @@ async def simulation_meteorology(
             "domain_radius": grid["domain_radius"],
             "latitude_resolution": grid["latitude_resolution"],
             "longitude_resolution": grid["longitude_resolution"],
+            "upper_air": upper_air,
             "surface_info": surface_info,
-            "surface": surface_profile
+            "surface": surface_profile,
+            "pbl": pbl
         })
 
     except Exception as exc:
@@ -668,6 +749,7 @@ async def simulation_meteorology(
     finally:
         if meteorology:
             meteorology.close()
+
         if surface:
             surface.close()
 
@@ -759,9 +841,18 @@ async def run_simulation(
     duration: float = Form(...),
     time_index: int = Form(0),
     total_particles: int = Form(50000),
+    precipitation_source: str = Form("dataset"),
+    precipitation_rate: float | None = Form(None),
+    scavenging_a: float = Form(8.4e-5),
+    scavenging_b: float = Form(0.79),
+    ventilation_rate: float = Form(4000.0),
+    mean_pbl_wind: float = Form(7.018),
+    convective_velocity: float = Form(2.0),
+    timestep_factor: float = Form(1.0),
     user: User = Depends(current_user),
     db: Session = Depends(get_db)
 ):
+
     if not user:
         return RedirectResponse("/login", 303)
 
@@ -838,12 +929,53 @@ async def run_simulation(
             time_index
         )
 
-        if not surface_profile["precipitation_available"]:
+        
+        if precipitation_source not in (
+            "dataset",
+            "manual",
+            "none"
+        ):
             raise ValueError(
-                "Data presipitasi tidak tersedia pada koordinat "
-                "dan waktu yang dipilih. Simulasi tidak dapat "
-                "menggunakan nilai presipitasi yang tidak valid."
+                "Sumber presipitasi tidak valid."
             )
+
+        if precipitation_source == "dataset":
+            if not surface_profile.get("precipitation_available"):
+                raise ValueError(
+                    "Data presipitasi GFS tidak tersedia."
+                )
+
+            precipitation = float(
+                surface_profile["precipitation"]
+            )
+
+            if (
+                not math.isfinite(precipitation)
+                or precipitation < 0
+            ):
+                raise ValueError(
+                    "Presipitasi dataset tidak valid."
+                )
+
+        elif precipitation_source == "manual":
+            if precipitation_rate is None:
+                raise ValueError(
+                    "Laju hujan manual wajib diisi."
+                )
+
+            if (
+                not math.isfinite(precipitation_rate)
+                or precipitation_rate < 0
+            ):
+                raise ValueError(
+                    "Laju hujan manual harus >= 0 mm/jam."
+                )
+
+            precipitation = 0.0
+
+        else:
+            precipitation = 0.0
+
 
         precipitation = float(
             surface_profile["precipitation"]
@@ -860,24 +992,7 @@ async def run_simulation(
         surface.close()
         surface = None
 
-        turbulence_params = TurbulenceService().parameters()
-        effective_dt = float(
-            turbulence_params["timestep"]
-        )
-
-        print("\n========== INPUT SIMULATION ==========")
-        print("Volcano          :", volcano)
-        print("Latitude         :", latitude)
-        print("Longitude        :", longitude)
-        print("Vent altitude    :", altitude)
-        print("Eruption height  :", eruption_height)
-        print("Eruption duration:", eruption_duration)
-        print("Simulation time  :", duration)
-        print("Timestep M6     :", effective_dt)
-        print("Particles        :", total_particles)
-        print("Time index       :", time_index)
-        print("======================================\n")
-
+        
         config = SimulationConfig(
             latitude=latitude,
             longitude=longitude,
@@ -892,8 +1007,47 @@ async def run_simulation(
             grid_resolution=grid["grid_resolution"],
             domain_radius=grid["domain_radius"],
             precipitation=precipitation,
-            mer_method=BACKEND_MER_METHOD
+            mer_method=BACKEND_MER_METHOD,
+            precipitation_source=precipitation_source,
+            precipitation_rate=precipitation_rate,
+            scavenging_a=scavenging_a,
+            scavenging_b=scavenging_b,
+            ventilation_rate=ventilation_rate,
+            mean_pbl_wind=mean_pbl_wind,
+            convective_velocity=convective_velocity,
+            timestep_factor=timestep_factor
         )
+
+        turbulence_params = TurbulenceService(
+            ventilation_rate=config.ventilation_rate,
+            pbl_wind_speed=config.mean_pbl_wind,
+            convective_velocity=config.convective_velocity,
+            timestep_factor=config.timestep_factor
+        ).parameters()
+
+        effective_dt = float(turbulence_params["timestep"])
+
+        print("\n========== INPUT SIMULATION ==========")
+        print("Volcano          :", volcano)
+        print("Latitude         :", config.latitude)
+        print("Longitude        :", config.longitude)
+        print("Vent altitude    :", config.altitude)
+        print("Eruption height  :", config.eruption_height)
+        print("Eruption duration:", config.eruption_duration)
+        print("Simulation time  :", config.duration)
+        print("Timestep M6      :", effective_dt)
+        print("Particles        :", config.total_particles)
+        print("Time index       :", config.time_index)
+        print("Rain source      :", config.precipitation_source)
+        print("Rain rate        :", config.precipitation_rate)
+        print("Scavenging A     :", config.scavenging_a)
+        print("Scavenging B     :", config.scavenging_b)
+        print("Ventilation rate :", config.ventilation_rate)
+        print("Mean PBL wind    :", config.mean_pbl_wind)
+        print("Convective vel.  :", config.convective_velocity)
+        print("Timestep factor  :", config.timestep_factor)
+        print("======================================\n")
+
 
         simulation = Simulation(
             user_id=user.id,
@@ -923,9 +1077,7 @@ async def run_simulation(
 
         service = get_simulation_service(
             dataset=dataset,
-            total_particles=config.total_particles,
-            particle_density=config.particle_density,
-            mer_method=config.mer_method
+            config=config
         )
 
         info = service.meteorology.time_information()
@@ -1359,7 +1511,8 @@ async def dispersion(
             "name",
             "eruption_height",
             "eruption_duration",
-            "time_index"
+            "time_index",
+            "total_particles"
         )
         if params.get(key) not in (None, "")
     }

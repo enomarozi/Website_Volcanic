@@ -1,12 +1,22 @@
+
 {% extends "layouts/base.html" %}
 {% block title %}Konfigurasi Sumber{% endblock %}
 {% block content %}
+
+{% set dataset_id = request.query_params.get('dataset_id', '') %}
+{% set volcano = request.query_params.get('volcano', '') %}
+{% set latitude = request.query_params.get('latitude', '') %}
+{% set longitude = request.query_params.get('longitude', '') %}
+{% set altitude = request.query_params.get('altitude', '') %}
+{% set time_index = request.query_params.get('time_index', '0') %}
 
 <div class="py-4 border-bottom mb-4">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
             <h1 class="h3 mb-1">Konfigurasi Sumber</h1>
-            <p class="text-muted mb-0">Konfigurasi laju emisi massa, geometri erupsi, dan karakteristik partikel.</p>
+            <p class="text-muted mb-0">
+                Konfigurasi laju emisi massa, geometri erupsi, dan karakteristik partikel.
+            </p>
         </div>
         <span class="badge text-bg-primary px-3 py-2">Tahap 3 dari 4</span>
     </div>
@@ -15,39 +25,36 @@
     </div>
 </div>
 
-{% set dataset_id = request.query_params.get('dataset_id', '') %}
-{% set volcano = request.query_params.get('volcano', '') %}
-{% set latitude = request.query_params.get('latitude', '') %}
-{% set longitude = request.query_params.get('longitude', '') %}
-{% set altitude = request.query_params.get('altitude', '') %}
+<div class="alert alert-danger d-none" id="sourceError"></div>
 
 <form method="get" action="/dispersion" id="sourceForm">
     <input type="hidden" name="meteorology_dataset_id" value="{{ dataset_id }}">
-
     <input type="hidden" name="volcano" value="{{ volcano }}">
     <input type="hidden" name="latitude" value="{{ latitude }}">
     <input type="hidden" name="longitude" value="{{ longitude }}">
     <input type="hidden" name="altitude" value="{{ altitude }}">
+    <input type="hidden" name="time_index" value="{{ time_index }}">
 
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white py-3">
             <div class="fw-semibold">01 · Metode Laju Emisi Massa (MER)</div>
-            <small class="text-muted">Konfigurasi metode perhitungan Mass Eruption Rate.</small>
+            <small class="text-muted">Konfigurasi perhitungan Mass Eruption Rate.</small>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Metode MER</label>
                     <input class="form-control" value="Degruyter" readonly>
-                    <div class="form-text">Metode mengikuti konfigurasi backend yang digunakan saat ini.</div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Status Perhitungan MER</label>
-                    <input class="form-control" value="Dihitung saat simulasi dijalankan" readonly>
+                    <input class="form-control" value="Dihitung oleh backend saat simulasi" readonly>
                 </div>
             </div>
+
             <div class="alert alert-info mt-3 mb-0">
-                MER dihitung oleh backend menggunakan parameter atmosfer dan tinggi kolom erupsi. Nilai perhitungan tidak dibuat di sisi tampilan.
+                MER dihitung menggunakan model backend berdasarkan tinggi kolom
+                erupsi dan parameter atmosfer. Nilai MER tidak dihitung di frontend.
             </div>
         </div>
     </div>
@@ -55,13 +62,15 @@
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white py-3">
             <div class="fw-semibold">02 · Geometri & Waktu Erupsi</div>
-            <small class="text-muted">Informasi lokasi vent, tinggi kolom, dan durasi erupsi.</small>
+            <small class="text-muted">Lokasi vent, tinggi kolom, dan durasi erupsi.</small>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label">Nama Simulasi</label>
-                    <input type="text" class="form-control" name="name" value="Simulasi {{ volcano }}" required>
+                    <label class="form-label" for="simulation_name">Nama Simulasi</label>
+                    <input type="text" class="form-control" id="simulation_name"
+                           name="name" maxlength="150"
+                           value="Simulasi {{ volcano }}" required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Gunung Api</label>
@@ -76,23 +85,42 @@
                     <input class="form-control" value="{{ longitude }}" readonly>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Elevasi Vent (m)</label>
+                    <label class="form-label">Elevasi Vent (m AMSL)</label>
                     <input class="form-control" value="{{ altitude }}" readonly>
                 </div>
+
                 <div class="col-md-6">
-                    <label class="form-label">Tinggi Kolom Erupsi (m AGL)</label>
-                    <input type="number" class="form-control" id="eruption_height" name="eruption_height" min="1" step="any" value="18000" required > 
+                    <label class="form-label" for="eruption_height">
+                        Tinggi Kolom Erupsi (m AGL)
+                    </label>
+                    <input type="number" class="form-control" id="eruption_height"
+                           name="eruption_height" min="1" step="any"
+                           value="{{ request.query_params.get('eruption_height', '18000') }}"
+                           required>
                 </div>
+
+                <div class="col-md-6">
+                    <label class="form-label" for="eruption_duration">
+                        Durasi Erupsi (jam)
+                    </label>
+                    <input type="number" class="form-control" id="eruption_duration"
+                           name="eruption_duration" min="0.01" step="any"
+                           value="{{ request.query_params.get('eruption_duration', '2') }}"
+                           required>
+                </div>
+
                 <div class="col-12">
-                    <div class="alert alert-info mb-0" id="heightInfo">
-                        <div>Elevasi vent: <strong id="ventHeightText">-</strong></div>
-                        <div>Tinggi erupsi: <strong id="eruptionHeightText">-</strong></div>
-                        <div>Puncak kolom AMSL: <strong id="columnTopText">-</strong></div>
+                    <div class="alert alert-info mb-0">
+                        <div>Elevasi vent:
+                            <strong id="ventHeightText">—</strong>
+                        </div>
+                        <div>Tinggi kolom:
+                            <strong id="eruptionHeightText">—</strong>
+                        </div>
+                        <div>Puncak kolom AMSL:
+                            <strong id="columnTopText">—</strong>
+                        </div>
                     </div>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Durasi Erupsi (jam)</label>
-                    <input type="number" class="form-control" name="eruption_duration" min="0.01" step="any" value="2" required>
                 </div>
             </div>
         </div>
@@ -100,69 +128,179 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white py-3">
-            <div class="fw-semibold">03 · Densitas Partikel & Distribusi Vertikal</div>
-            <small class="text-muted">Karakteristik partikel yang digunakan dalam simulasi.</small>
+            <div class="fw-semibold">03 · Karakteristik Partikel</div>
+            <small class="text-muted">
+                Parameter partikel yang digunakan dalam simulasi.
+            </small>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Densitas Partikel (kg/m³)</label>
                     <input type="number" class="form-control" value="2500" readonly>
-                    <div class="form-text">Nilai mengikuti konfigurasi backend saat ini.</div>
+                    <div class="form-text">
+                        Nilai mengikuti konfigurasi backend saat ini.
+                    </div>
                 </div>
+
                 <div class="col-md-6">
-                    <label class="form-label">Total Partikel</label>
-                    <input type="number" class="form-control" value="50000">
+                    <label class="form-label" for="total_particles">Total Partikel</label>
+                    <input type="number" class="form-control"
+                           id="total_particles" name="total_particles"
+                           min="1" max="1000000" step="1"
+                           value="{{ request.query_params.get('total_particles', '50000') }}"
+                           required>
+                    <div class="form-text">
+                        Jumlah partikel komputasi memengaruhi durasi dan penggunaan memori.
+                    </div>
                 </div>
             </div>
+
             <div class="mt-3">
-                <label class="form-label">Distribusi Vertikal</label>
+                <label class="form-label">Distribusi Ukuran Partikel</label>
                 <div class="alert alert-secondary mb-0">
-                    Distribusi vertikal mengikuti formulasi dan konfigurasi model yang dijalankan backend. Parameter distribusi tidak diubah dari halaman ini.
+                    Distribusi ukuran partikel mengikuti konfigurasi
+                    ParticleService pada backend.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <div class="fw-semibold">04 · Ringkasan Konfigurasi</div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Dataset ID</label>
+                    <input class="form-control" value="{{ dataset_id }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Time Index</label>
+                    <input class="form-control" value="{{ time_index }}" readonly>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Metode MER</label>
+                    <input class="form-control" value="Degruyter" readonly>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="d-flex justify-content-between align-items-center gap-2 mb-4">
-        <a href="/meteorology/config?volcano={{ volcano|urlencode }}&latitude={{ latitude }}&longitude={{ longitude }}&altitude={{ altitude }}"
+        <a id="previousButton"
+           href="/meteorology/config"
            class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left me-1"></i> Previous
         </a>
-        <button type="submit" class="btn btn-primary" {% if not dataset_id %}disabled{% endif %}>
+
+        <button type="submit" class="btn btn-primary" id="nextButton">
             Next <i class="bi bi-arrow-right ms-1"></i>
         </button>
     </div>
 </form>
+
 <script>
-    const eruptionHeightInput = document.getElementById("eruption_height");
-    const ventAltitude = Number(
-        new URLSearchParams(window.location.search).get("altitude")
-    );
+document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("sourceForm");
+    const heightInput = document.getElementById("eruption_height");
+    const durationInput = document.getElementById("eruption_duration");
+    const particlesInput = document.getElementById("total_particles");
+    const errorBox = document.getElementById("sourceError");
 
-    function updateColumnHeight() {
-        if (!eruptionHeightInput || !Number.isFinite(ventAltitude)) return;
+    const params = new URLSearchParams(window.location.search);
+    const altitudeRaw = params.get("altitude");
+    const ventAltitude = altitudeRaw === null || altitudeRaw.trim() === ""
+        ? NaN : Number(altitudeRaw);
 
-        const height = Number(eruptionHeightInput.value);
-        if (!Number.isFinite(height) || height <= 0) return;
+    const previousParams = new URLSearchParams();
 
-        const format = value => value.toLocaleString("id-ID", {
+    ["volcano", "latitude", "longitude", "altitude"].forEach(key => {
+        if (params.has(key)) {
+            previousParams.set(key, params.get(key));
+        }
+    });
+
+    document.getElementById("previousButton").href =
+        "/meteorology/config?" + previousParams.toString();
+
+    function format(value) {
+        return Number(value).toLocaleString("id-ID", {
             maximumFractionDigits: 2
         });
+    }
+
+    function updateColumnHeight() {
+        const height = Number(heightInput.value);
 
         document.getElementById("ventHeightText").textContent =
-            `${format(ventAltitude)} m AMSL`;
+            Number.isFinite(ventAltitude)
+                ? format(ventAltitude) + " m AMSL" : "—";
 
         document.getElementById("eruptionHeightText").textContent =
-            `${format(height)} m AGL`;
+            Number.isFinite(height) && height > 0
+                ? format(height) + " m AGL" : "—";
 
         document.getElementById("columnTopText").textContent =
-            `${format(ventAltitude + height)} m AMSL`;
+            Number.isFinite(ventAltitude) &&
+            Number.isFinite(height) && height > 0
+                ? format(ventAltitude + height) + " m AMSL" : "—";
     }
 
-    if (eruptionHeightInput) {
-        eruptionHeightInput.addEventListener("input", updateColumnHeight);
-        updateColumnHeight();
+    function showError(message) {
+        errorBox.textContent = message;
+        errorBox.classList.remove("d-none");
+        errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
     }
+
+    form.addEventListener("submit", event => {
+        errorBox.classList.add("d-none");
+
+        const datasetId = Number(
+            form.elements["meteorology_dataset_id"].value
+        );
+        const latitude = Number(form.elements["latitude"].value);
+        const longitude = Number(form.elements["longitude"].value);
+        const height = Number(heightInput.value);
+        const duration = Number(durationInput.value);
+        const particles = Number(particlesInput.value);
+
+        if (!Number.isInteger(datasetId) || datasetId <= 0) {
+            event.preventDefault();
+            showError("Dataset meteorologi belum dipilih.");
+            return;
+        }
+
+        if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+            !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
+            !Number.isFinite(ventAltitude)) {
+            event.preventDefault();
+            showError("Koordinat atau elevasi vent tidak valid.");
+            return;
+        }
+
+        if (!Number.isFinite(height) || height <= 0) {
+            event.preventDefault();
+            showError("Tinggi kolom erupsi harus lebih besar dari nol.");
+            return;
+        }
+
+        if (!Number.isFinite(duration) || duration <= 0) {
+            event.preventDefault();
+            showError("Durasi erupsi harus lebih besar dari nol.");
+            return;
+        }
+
+        if (!Number.isInteger(particles) || particles < 1 || particles > 1000000) {
+            event.preventDefault();
+            showError("Jumlah partikel harus antara 1 dan 1.000.000.");
+        }
+    });
+
+    heightInput.addEventListener("input", updateColumnHeight);
+    updateColumnHeight();
+});
 </script>
+
 {% endblock %}
