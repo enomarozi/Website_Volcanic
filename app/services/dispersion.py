@@ -223,6 +223,9 @@ class DispersionService:
         **extra
     ):
         return {
+            "particle_id": p.get("particle_id", p.get("id")),
+            "particle_class": p.get("particle_class", p.get("class")),
+            "radius": float(p["radius"]),
             "latitude": float(lat),
             "longitude": float(lon),
             "altitude": float(alt),
@@ -236,10 +239,7 @@ class DispersionService:
             "pdry": float(pdry),
             "pwet": float(pwet),
             "vd": float(
-                extra.pop(
-                    "vd",
-                    p.get("settling_velocity", 0.0)
-                )
+                extra.pop("vd", p.get("settling_velocity", 0.0))
             ),
             **extra
         }

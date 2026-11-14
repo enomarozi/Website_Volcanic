@@ -1,6 +1,8 @@
+
 {% extends "layouts/base.html" %}
 {% block title %}Hasil Simulasi - Volcanic Ash Analysis{% endblock %}
 {% block content %}
+
 {% set concentration = result.concentration if result.concentration else {} %}
 {% set deposition = result.surface_deposition if result.surface_deposition else {} %}
 {% set location = result.location if result.location else {} %}
@@ -13,41 +15,62 @@
     <div class="result-heading d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
         <div>
             <h4 class="fw-bold mb-1">Model Dispersi & Hasil</h4>
-            <div class="result-muted">{{ volcano }} · {{ result.simulation_time|default('-') }} · metode {{ result.mer_method|default('Degruyter & Bonadonna (2012)') }}</div>
+            <div class="result-muted">
+                {{ volcano }} · {{ result.simulation_time|default('-') }}
+                · metode {{ result.mer_method|default('Degruyter & Bonadonna (2012)') }}
+            </div>
         </div>
-        <span class="status-badge"><span></span> Simulasi selesai</span>
+        <span class="status-badge">
+            <span></span> Simulasi selesai
+        </span>
     </div>
 
     <div class="summary-bar d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
         <div>
-            Durasi simulasi <strong>{{ input.duration_hours|default(0)|sig }} jam</strong>
+            Durasi simulasi
+            <strong>{{ input.duration_hours|default(0)|sig }} jam</strong>
             <span class="separator">·</span>
-            output tiap <strong>{{ result.output_interval_minutes|default('-')|sig }} menit</strong>
+            output tiap
+            <strong>{{ result.output_interval_minutes|default('-')|sig }} menit</strong>
             <span class="separator">·</span>
-            total massa erupsi <strong>{{ result.total_erupted_mass|default('-')|sig }} kg</strong>
+            total massa erupsi
+            <strong>{{ result.total_erupted_mass|default('-')|sig }} kg</strong>
         </div>
-        <a href="/simulations/create" class="btn btn-run"><i class="bi bi-play-fill me-1"></i> Jalankan Ulang</a>
+        <a href="/simulations/create" class="btn btn-run">
+            <i class="bi bi-play-fill me-1"></i> Jalankan Ulang
+        </a>
     </div>
 
     <div class="row g-3 mb-3">
         <div class="col-md-4">
             <div class="metric-card metric-primary">
                 <div class="metric-label">Puncak muatan kolom</div>
-                <div class="metric-value">{{ result.peak_column_loading|default('-')|sig }} <small>g/m²</small></div>
+                <div class="metric-value">
+                    {{ result.peak_column_loading|default('-')|sig }}
+                    <small>g/m²</small>
+                </div>
                 <div class="metric-note">∫C dz maksimum</div>
             </div>
         </div>
+
         <div class="col-md-4">
             <div class="metric-card">
                 <div class="metric-label">Rata-rata muatan kolom</div>
-                <div class="metric-value">{{ result.mean_column_loading|default('-')|sig }} <small>g/m²</small></div>
+                <div class="metric-value">
+                    {{ result.mean_column_loading|default('-')|sig }}
+                    <small>g/m²</small>
+                </div>
                 <div class="metric-note">Rata-rata area terdampak</div>
             </div>
         </div>
+
         <div class="col-md-4">
             <div class="metric-card">
                 <div class="metric-label">Total massa erupsi</div>
-                <div class="metric-value">{{ result.total_erupted_mass|default('-')|sig }} <small>kg</small></div>
+                <div class="metric-value">
+                    {{ result.total_erupted_mass|default('-')|sig }}
+                    <small>kg</small>
+                </div>
                 <div class="metric-note">MER × durasi erupsi</div>
             </div>
         </div>
@@ -57,14 +80,18 @@
         <div class="col-xl-8">
             <div class="result-card map-card">
                 <div class="result-card-header">
-                    <div class="header-icon"><i class="bi bi-map"></i></div>
+                    <div class="header-icon">
+                        <i class="bi bi-map"></i>
+                    </div>
                     <div>
                         <h6>Peta Sebaran Abu</h6>
-                        <small>Muatan kolom (g/m²) & arah sebaran dari vent</small>
+                        <small>Lintasan dan distribusi ukuran partikel abu vulkanik</small>
                     </div>
                 </div>
+
                 <div class="map-container">
                     <div id="map"></div>
+
                     <div class="map-compass">
                         <div class="compass-circle">
                             <span class="compass-n">N</span>
@@ -74,8 +101,38 @@
                             <div class="compass-arrow" id="compassArrow"></div>
                             <div class="compass-center"></div>
                         </div>
-                        <div class="compass-label">{{ result.direction|default('-') }} · {{ result.azimuth|default('-')|sig }}°</div>
+                        <div class="compass-label">
+                            {{ result.direction|default('-') }}
+                            · {{ result.azimuth|default('-')|sig }}°
+                        </div>
                     </div>
+
+                    <div class="particle-legend">
+                        <div class="particle-legend-title">
+                            <i class="bi bi-circle-half me-1"></i>
+                            Kategori Partikel
+                        </div>
+
+                        <div class="particle-legend-row">
+                            <span class="particle-dot small"></span>
+                            <span>Kecil (Fine) · r = 5 µm</span>
+                        </div>
+
+                        <div class="particle-legend-row">
+                            <span class="particle-dot medium"></span>
+                            <span>Sedang (Medium) · r = 50 µm</span>
+                        </div>
+
+                        <div class="particle-legend-row">
+                            <span class="particle-dot large"></span>
+                            <span>Besar (Coarse) · r = 500 µm</span>
+                        </div>
+
+                        <div class="particle-legend-note">
+                            Warna menunjukkan kelas ukuran partikel.
+                        </div>
+                    </div>
+
                     <div class="map-caption">
                         <strong>Hasil Simulasi</strong> — Visualisasi GeoJSON pada OpenStreetMap
                     </div>
@@ -86,9 +143,12 @@
         <div class="col-xl-4">
             <div class="result-card mb-3">
                 <div class="result-card-header">
-                    <div class="header-icon"><i class="bi bi-activity"></i></div>
+                    <div class="header-icon">
+                        <i class="bi bi-activity"></i>
+                    </div>
                     <div><h6>Partisi Massa</h6></div>
                 </div>
+
                 <div class="info-body">
                     {% for key, label, color in [
                         ('airborne','Melayang (udara)','bar-green'),
@@ -99,48 +159,97 @@
                     <div class="partition-row">
                         <span>{{ label }}</span>
                         <div class="partition-track">
-                            <div class="partition-fill {{ color }}" style="width:{{ value }}%"></div>
+                            <div class="partition-fill {{ color }}"
+                                 style="width:{{ value }}%"></div>
                         </div>
                         <strong>{{ value|sig }}%</strong>
                     </div>
                     {% endfor %}
+
                     <div class="closure-row">
                         <i class="bi bi-check2"></i>
                         <span>Kesetimbangan massa (closure):</span>
-                        <strong>{{ result.mass_closure|default('-')|sig }}{% if result.mass_closure is defined %}%{% endif %}</strong>
+                        <strong>
+                            {{ result.mass_closure|default('-')|sig }}
+                            {% if result.mass_closure is defined %}%{% endif %}
+                        </strong>
                     </div>
                 </div>
             </div>
 
             <div class="result-card mb-3">
                 <div class="result-card-header">
-                    <div class="header-icon"><i class="bi bi-arrow-up-right"></i></div>
+                    <div class="header-icon">
+                        <i class="bi bi-arrow-up-right"></i>
+                    </div>
                     <div><h6>Geometri Sebaran</h6></div>
                 </div>
+
                 <div class="info-body">
-                    <div class="info-row"><span>Arah (16 arah)</span><strong>{{ result.direction|default('-') }}</strong></div>
-                    <div class="info-row"><span>Azimut</span><strong>{{ result.azimuth|default('-')|sig }}{% if result.azimuth is defined %}°{% endif %}</strong></div>
-                    <div class="info-row"><span>Panjang sebaran</span><strong>{{ result.plume_length|default('-')|sig }} km</strong></div>
-                    <div class="info-row"><span>Lebar plume</span><strong>{{ result.plume_width|default('-')|sig }} km</strong></div>
-                    <div class="info-row"><span>Luas terdampak</span><strong>{{ result.affected_area|default('-')|sig }} km²</strong></div>
-                    <div class="info-row"><span>Stabilitas N</span><strong>{{ result.stability_n|default('-')|sig }} s⁻¹</strong></div>
-                    <div class="info-row"><span>Angin rata-rata v̄</span><strong>{{ result.mean_wind_speed|default('-')|sig }} m/s</strong></div>
+                    <div class="info-row">
+                        <span>Arah (16 arah)</span>
+                        <strong>{{ result.direction|default('-') }}</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Azimut</span>
+                        <strong>
+                            {{ result.azimuth|default('-')|sig }}
+                            {% if result.azimuth is defined %}°{% endif %}
+                        </strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Panjang sebaran</span>
+                        <strong>{{ result.plume_length|default('-')|sig }} km</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Lebar plume</span>
+                        <strong>{{ result.plume_width|default('-')|sig }} km</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Luas terdampak</span>
+                        <strong>{{ result.affected_area|default('-')|sig }} km²</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Stabilitas N</span>
+                        <strong>{{ result.stability_n|default('-')|sig }} s⁻¹</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Angin rata-rata v̄</span>
+                        <strong>{{ result.mean_wind_speed|default('-')|sig }} m/s</strong>
+                    </div>
                 </div>
             </div>
 
             <div class="result-card">
                 <div class="result-card-header">
-                    <div class="header-icon"><i class="bi bi-download"></i></div>
+                    <div class="header-icon">
+                        <i class="bi bi-download"></i>
+                    </div>
                     <div><h6>Ekspor Hasil</h6></div>
                 </div>
+
                 <div class="export-body">
-                    <a href="{{ result.export_pdf_url|default('#') }}" class="btn btn-export" {% if not result.export_pdf_url is defined %}aria-disabled="true" onclick="return false"{% endif %}>
+                    <a href="{{ result.export_pdf_url|default('#') }}"
+                       class="btn btn-export"
+                       {% if not result.export_pdf_url is defined %}
+                       aria-disabled="true" onclick="return false"
+                       {% endif %}>
                         <i class="bi bi-file-earmark-text"></i> Laporan PDF
                     </a>
-                    <a href="{{ result.export_kmz_url|default('#') }}" class="btn btn-export" {% if not result.export_kmz_url is defined %}aria-disabled="true" onclick="return false"{% endif %}>
+
+                    <a href="{{ result.export_kmz_url|default('#') }}"
+                       class="btn btn-export"
+                       {% if not result.export_kmz_url is defined %}
+                       aria-disabled="true" onclick="return false"
+                       {% endif %}>
                         <i class="bi bi-geo-alt"></i> KMZ
                     </a>
-                    <a href="{{ result.export_csv_url|default('#') }}" class="btn btn-export" {% if not result.export_csv_url is defined %}aria-disabled="true" onclick="return false"{% endif %}>
+
+                    <a href="{{ result.export_csv_url|default('#') }}"
+                       class="btn btn-export"
+                       {% if not result.export_csv_url is defined %}
+                       aria-disabled="true" onclick="return false"
+                       {% endif %}>
                         <i class="bi bi-table"></i> CSV
                     </a>
                 </div>
@@ -149,78 +258,513 @@
     </div>
 
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mt-4">
-        <a href="/simulations/create" class="btn btn-back"><i class="bi bi-arrow-left me-1"></i> Kembali ke Konfigurasi Sumber</a>
-        <small class="result-muted fst-italic">Nilai pada halaman ini ditampilkan berdasarkan hasil perhitungan model dispersi VADiS.</small>
+        <a href="/simulations/create" class="btn btn-back">
+            <i class="bi bi-arrow-left me-1"></i>
+            Kembali ke Konfigurasi Sumber
+        </a>
+        <small class="result-muted fst-italic">
+            Nilai pada halaman ini ditampilkan berdasarkan hasil perhitungan model dispersi VADiS.
+        </small>
     </div>
 </div>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>
-.result-page{color:#212529;padding:20px 16px 32px;background:#fff;min-height:100vh}
-.result-muted{color:#6c757d;font-size:12px}
-.result-heading h4{font-size:20px;color:#212529}
-.status-badge{background:#d1e7dd;color:#0f5132;border-radius:30px;padding:8px 13px;font-size:12px;font-weight:600}
-.status-badge span{display:inline-block;width:7px;height:7px;border-radius:50%;background:#198754;margin-right:7px}
-.summary-bar{background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:13px 16px;color:#6c757d;font-size:12px;box-shadow:0 .125rem .25rem rgba(0,0,0,.075)}
-.summary-bar strong{color:#212529}
-.separator{padding:0 5px;color:#adb5bd}
-.btn-run{background:#0d6efd;color:#fff;border:1px solid #0d6efd;border-radius:6px;padding:10px 17px;font-size:12px;font-weight:600}
-.btn-run:hover{background:#0b5ed7;color:#fff}
-.metric-card{background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:16px 18px;min-height:105px;box-shadow:0 .125rem .25rem rgba(0,0,0,.075)}
-.metric-primary{border-left:3px solid #fd7e14}
-.metric-label{font-size:11px;color:#6c757d;margin-bottom:7px}
-.metric-value{font-size:23px;font-weight:700;color:#212529}
-.metric-value small{font-size:11px;font-weight:400;color:#6c757d}
-.metric-note{font-size:10px;color:#6c757d;margin-top:4px}
-.result-card{background:#fff;border:1px solid #dee2e6;border-radius:10px;overflow:hidden;box-shadow:0 .125rem .25rem rgba(0,0,0,.075)}
-.result-card-header{display:flex;align-items:center;gap:12px;padding:14px 17px;border-bottom:1px solid #dee2e6;min-height:61px;background:#fff}
-.result-card-header h6{font-size:13px;font-weight:600;margin:0;color:#212529}
-.result-card-header small{font-size:11px;color:#6c757d}
-.header-icon{width:33px;height:33px;border-radius:8px;background:#e7f1ff;color:#0d6efd;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.map-card{position:relative}
-.map-container{position:relative}
-#map{height:407px;width:100%;background:#e9ecef;z-index:1}
-.leaflet-container{font-family:inherit}
-.leaflet-control-attribution{font-size:9px!important}
-.map-compass{position:absolute;z-index:500;top:13px;left:13px;background:rgba(255,255,255,.95);border:1px solid #dee2e6;border-radius:10px;padding:10px;width:100px;text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.12)}
-.compass-circle{width:58px;height:58px;border:2px solid #e9ecef;border-radius:50%;margin:0 auto 5px;position:relative}
-.compass-circle span{position:absolute;font-size:7px;color:#6c757d}
-.compass-n{top:2px;left:26px}.compass-e{right:3px;top:24px}.compass-s{bottom:2px;left:27px}.compass-w{left:3px;top:24px}
-.compass-arrow{position:absolute;width:3px;height:28px;background:#dc3545;left:26px;top:13px;transform-origin:center 16px;transform:rotate(232deg);border-radius:3px}
-.compass-center{position:absolute;width:7px;height:7px;background:#fd7e14;border-radius:50%;left:23px;top:23px}
-.compass-label{font-size:9px;color:#495057;font-weight:600}
-.map-legend{position:absolute;z-index:500;right:13px;bottom:13px;background:rgba(255,255,255,.95);border:1px solid #dee2e6;border-radius:8px;padding:9px 8px;width:83px;display:grid;grid-template-columns:1fr 14px;gap:4px;box-shadow:0 1px 5px rgba(0,0,0,.12)}
-.legend-label{font-size:9px;color:#6c757d;text-align:right;line-height:15px}
-.legend-gradient{grid-column:2;grid-row:1/6;width:14px;height:92px;border-radius:4px;background:linear-gradient(to top,#fff1a6,#ffbd16,#ff7900,#e51d12)}
-.legend-unit{grid-column:1/3;font-size:8px;color:#6c757d;text-align:center;writing-mode:vertical-rl;transform:rotate(180deg);position:absolute;left:3px;top:25px;height:75px}
-.map-caption{position:absolute;bottom:13px;left:13px;z-index:500;background:rgba(255,255,255,.95);border:1px solid #dee2e6;border-radius:6px;padding:6px 9px;color:#495057;font-size:10px}
-.info-body{padding:10px 17px}
-.info-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #dee2e6;font-size:11px}
-.info-row:last-child{border-bottom:0}
-.info-row span{color:#6c757d}
-.info-row strong{color:#212529;text-align:right;font-weight:600}
-.partition-row{display:grid;grid-template-columns:120px 1fr 36px;gap:10px;align-items:center;margin:9px 0;font-size:11px;color:#343a40}
-.partition-row strong{text-align:right;font-size:11px}
-.partition-track{height:11px;border-radius:20px;background:#e9ecef;overflow:hidden}
-.partition-fill{height:100%;border-radius:20px}
-.bar-green{background:#299d6c}.bar-light{background:#48c995}.bar-yellow{background:#f5a400}.bar-red{background:#dc3545}
-.closure-row{border-top:1px solid #dee2e6;margin-top:14px;padding-top:13px;display:flex;align-items:center;gap:9px;font-size:11px;color:#6c757d}
-.closure-row i,.closure-row strong{color:#198754}
-.closure-row strong{margin-left:auto}
-.export-body{padding:15px;display:flex;gap:8px;flex-wrap:wrap}
-.btn-export{background:#fff;border:1px solid #dee2e6;color:#343a40;border-radius:6px;padding:10px 12px;font-size:11px;font-weight:600}
-.btn-export:hover{background:#f8f9fa;color:#0d6efd;border-color:#0d6efd}
-.btn-export[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
-.btn-back{background:#fff;border:1px solid #ced4da;color:#343a40;border-radius:6px;padding:11px 16px;font-size:12px;font-weight:600}
-.btn-back:hover{background:#f8f9fa;color:#0d6efd;border-color:#0d6efd}
-.volcano-marker{background:transparent;border:0}
-.volcano-marker div{width:25px;height:25px;border-radius:50%;background:#dc3545;border:2px solid white;box-shadow:0 1px 7px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
-.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#fff;color:#212529}
-.leaflet-popup-content{font-size:11px;line-height:1.7}
-@media(max-width:767px){.result-page{padding:15px 8px}.result-heading h4{font-size:18px}#map{height:407px}.summary-bar{align-items:flex-start}.partition-row{grid-template-columns:105px 1fr 35px}.export-body{gap:6px}.btn-export{padding:9px}}
-</style>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.result-page {
+    color: #212529;
+    padding: 20px 16px 32px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+.result-muted {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.result-heading h4 {
+    font-size: 20px;
+    color: #212529;
+}
+
+.status-badge {
+    background: #d1e7dd;
+    color: #0f5132;
+    border-radius: 30px;
+    padding: 8px 13px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-badge span {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #198754;
+    margin-right: 7px;
+}
+
+.summary-bar {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 13px 16px;
+    color: #6c757d;
+    font-size: 12px;
+    box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+}
+
+.summary-bar strong {
+    color: #212529;
+}
+
+.separator {
+    padding: 0 5px;
+    color: #adb5bd;
+}
+
+.btn-run {
+    background: #0d6efd;
+    color: #fff;
+    border: 1px solid #0d6efd;
+    border-radius: 6px;
+    padding: 10px 17px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.btn-run:hover {
+    background: #0b5ed7;
+    color: #fff;
+}
+
+.metric-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 16px 18px;
+    min-height: 105px;
+    box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+}
+
+.metric-primary {
+    border-left: 3px solid #fd7e14;
+}
+
+.metric-label {
+    font-size: 11px;
+    color: #6c757d;
+    margin-bottom: 7px;
+}
+
+.metric-value {
+    font-size: 23px;
+    font-weight: 700;
+    color: #212529;
+}
+
+.metric-value small {
+    font-size: 11px;
+    font-weight: 400;
+    color: #6c757d;
+}
+
+.metric-note {
+    font-size: 10px;
+    color: #6c757d;
+    margin-top: 4px;
+}
+
+.result-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+}
+
+.result-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 17px;
+    border-bottom: 1px solid #dee2e6;
+    min-height: 61px;
+    background: #fff;
+}
+
+.result-card-header h6 {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0;
+    color: #212529;
+}
+
+.result-card-header small {
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.header-icon {
+    width: 33px;
+    height: 33px;
+    border-radius: 8px;
+    background: #e7f1ff;
+    color: #0d6efd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.map-card,
+.map-container {
+    position: relative;
+}
+
+#map {
+    height: 407px;
+    width: 100%;
+    background: #e9ecef;
+    z-index: 1;
+}
+
+.leaflet-container {
+    font-family: inherit;
+}
+
+.leaflet-control-attribution {
+    font-size: 9px !important;
+}
+
+.map-compass {
+    position: absolute;
+    z-index: 500;
+    top: 13px;
+    left: 13px;
+    background: rgba(255,255,255,.95);
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 10px;
+    width: 100px;
+    text-align: center;
+    box-shadow: 0 1px 5px rgba(0,0,0,.12);
+}
+
+.compass-circle {
+    width: 58px;
+    height: 58px;
+    border: 2px solid #e9ecef;
+    border-radius: 50%;
+    margin: 0 auto 5px;
+    position: relative;
+}
+
+.compass-circle span {
+    position: absolute;
+    font-size: 7px;
+    color: #6c757d;
+}
+
+.compass-n { top: 2px; left: 26px; }
+.compass-e { right: 3px; top: 24px; }
+.compass-s { bottom: 2px; left: 27px; }
+.compass-w { left: 3px; top: 24px; }
+
+.compass-arrow {
+    position: absolute;
+    width: 3px;
+    height: 28px;
+    background: #dc3545;
+    left: 26px;
+    top: 13px;
+    transform-origin: center 16px;
+    transform: rotate(0deg);
+    border-radius: 3px;
+}
+
+.compass-center {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    background: #fd7e14;
+    border-radius: 50%;
+    left: 23px;
+    top: 23px;
+}
+
+.compass-label {
+    font-size: 9px;
+    color: #495057;
+    font-weight: 600;
+}
+
+.particle-legend {
+    position: absolute;
+    top: 13px;
+    right: 13px;
+    z-index: 500;
+    width: 185px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,.96);
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.12);
+}
+
+.particle-legend-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #212529;
+    margin-bottom: 12px;
+}
+
+.particle-legend-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.particle-dot {
+    display: inline-block;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.particle-dot.small {
+    width: 9px;
+    height: 9px;
+    background: #dc3545;
+}
+
+.particle-dot.medium {
+    width: 13px;
+    height: 13px;
+    background: #fd7e14;
+}
+
+.particle-dot.large {
+    width: 17px;
+    height: 17px;
+    background: #ffc107;
+}
+
+.particle-legend-note {
+    border-top: 1px solid #e9ecef;
+    padding-top: 8px;
+    font-size: 9px;
+    color: #6c757d;
+    line-height: 1.5;
+}
+
+.map-caption {
+    position: absolute;
+    bottom: 13px;
+    left: 13px;
+    z-index: 500;
+    background: rgba(255,255,255,.95);
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 6px 9px;
+    color: #495057;
+    font-size: 10px;
+}
+
+.info-body {
+    padding: 10px 17px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #dee2e6;
+    font-size: 11px;
+}
+
+.info-row:last-child {
+    border-bottom: 0;
+}
+
+.info-row span {
+    color: #6c757d;
+}
+
+.info-row strong {
+    color: #212529;
+    text-align: right;
+    font-weight: 600;
+}
+
+.partition-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 36px;
+    gap: 10px;
+    align-items: center;
+    margin: 9px 0;
+    font-size: 11px;
+    color: #343a40;
+}
+
+.partition-row strong {
+    text-align: right;
+    font-size: 11px;
+}
+
+.partition-track {
+    height: 11px;
+    border-radius: 20px;
+    background: #e9ecef;
+    overflow: hidden;
+}
+
+.partition-fill {
+    height: 100%;
+    border-radius: 20px;
+}
+
+.bar-green { background: #299d6c; }
+.bar-light { background: #48c995; }
+.bar-yellow { background: #f5a400; }
+.bar-red { background: #dc3545; }
+
+.closure-row {
+    border-top: 1px solid #dee2e6;
+    margin-top: 14px;
+    padding-top: 13px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.closure-row i,
+.closure-row strong {
+    color: #198754;
+}
+
+.closure-row strong {
+    margin-left: auto;
+}
+
+.export-body {
+    padding: 15px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-export {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    color: #343a40;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.btn-export:hover {
+    background: #f8f9fa;
+    color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-export[aria-disabled="true"] {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.btn-back {
+    background: #fff;
+    border: 1px solid #ced4da;
+    color: #343a40;
+    border-radius: 6px;
+    padding: 11px 16px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.btn-back:hover {
+    background: #f8f9fa;
+    color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.volcano-marker {
+    background: transparent;
+    border: 0;
+}
+
+.volcano-marker div {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: #dc3545;
+    border: 2px solid white;
+    box-shadow: 0 1px 7px rgba(0,0,0,.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+    background: #fff;
+    color: #212529;
+}
+
+.leaflet-popup-content {
+    font-size: 11px;
+    line-height: 1.7;
+}
+
+@media(max-width:767px) {
+    .result-page {
+        padding: 15px 8px;
+    }
+
+    .result-heading h4 {
+        font-size: 18px;
+    }
+
+    #map {
+        height: 407px;
+    }
+
+    .partition-row {
+        grid-template-columns: 105px 1fr 35px;
+    }
+
+    .export-body {
+        gap: 6px;
+    }
+
+    .btn-export {
+        padding: 9px;
+    }
+
+    .particle-legend {
+        width: 155px;
+        padding: 10px;
+    }
+
+    .particle-legend-row {
+        font-size: 10px;
+    }
+}
+</style>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -266,9 +810,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const volcanoLayer = L.layerGroup().addTo(map);
 
     const colors = {
-        small: "#3388ff",
-        medium: "#ffc107",
-        large: "#dc3545"
+        fine: "#dc3545",
+        medium: "#fd7e14",
+        coarse: "#ffc107"
+    };
+    const particleRadii = {
+        fine: 2,
+        medium: 3,
+        coarse: 4
     };
 
     function escapeHTML(value) {
@@ -284,14 +833,26 @@ document.addEventListener("DOMContentLoaded", () => {
         );
     }
 
-    function particleColor(properties = {}) {
+    function particleCategory(properties = {}) {
         const category = String(
-            properties.particle_class ||
-            properties.class ||
-            "medium"
-        ).toLowerCase();
+            properties.particle_class ??
+            properties.class ??
+            ""
+        ).trim().toLowerCase();
 
-        return colors[category] || "#6c757d";
+        return Object.hasOwn(colors, category)
+            ? category
+            : null;
+    }
+
+    function particleColor(properties = {}) {
+        const category = particleCategory(properties);
+        return category ? colors[category] : "#6c757d";
+    }
+
+    function particleRadius(properties = {}) {
+        const category = particleCategory(properties);
+        return category ? particleRadii[category] : 2;
     }
 
     function popup(title, properties = {}) {
@@ -311,14 +872,14 @@ document.addEventListener("DOMContentLoaded", () => {
             return features;
         }
 
-        const result = [];
+        const sampled = [];
         const step = features.length / limit;
 
         for (let i = 0; i < limit; i++) {
-            result.push(features[Math.floor(i * step)]);
+            sampled.push(features[Math.floor(i * step)]);
         }
 
-        return result;
+        return sampled;
     }
 
     function getFeatures(name) {
@@ -392,10 +953,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         L.circleMarker([lat, lon], {
             renderer: renderer,
-            radius: 2,
+            radius: particleRadius(feature.properties),
             stroke: false,
             fillColor: particleColor(feature.properties),
-            fillOpacity: 0.75,
+            fillOpacity: 0.9,
             interactive: false
         }).addTo(particleLayer);
     });
@@ -417,10 +978,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         L.circleMarker([lat, lon], {
             renderer: renderer,
-            radius: 3,
-            stroke: false,
+            radius: particleRadius(feature.properties) + 1,
+            stroke: true,
+            color: "#ffffff",
+            weight: 0.5,
             fillColor: particleColor(feature.properties),
-            fillOpacity: 0.8,
+            fillOpacity: 0.85,
             interactive: false
         }).addTo(depositionLayer);
     });
@@ -433,10 +996,10 @@ document.addEventListener("DOMContentLoaded", () => {
         L.geoJSON(feature, {
             renderer: renderer,
             style: {
-                color: "#555",
+                color: "#64748b",
                 weight: 0.5,
-                fillColor: particleColor(feature.properties),
-                fillOpacity: 0.4
+                fillColor: "#64748b",
+                fillOpacity: 0.18
             },
             onEachFeature: (f, layer) => {
                 layer.bindPopup(
@@ -448,6 +1011,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     depositionGridLayer.addTo(map);
     trajectoryLayer.addTo(map);
+    particleLayer.addTo(map);
 
     L.control.layers(
         {
@@ -461,7 +1025,8 @@ document.addEventListener("DOMContentLoaded", () => {
             "Grid Deposisi": depositionGridLayer
         },
         {
-            collapsed: false
+            position: "bottomleft",
+            collapsed: true
         }
     ).addTo(map);
 
@@ -469,7 +1034,7 @@ document.addEventListener("DOMContentLoaded", () => {
         [latitude, longitude]
     ]);
 
-    [trajectoryLayer, depositionGridLayer].forEach(group => {
+    [trajectoryLayer, particleLayer, depositionGridLayer].forEach(group => {
         group.eachLayer(layer => {
             if (typeof layer.getBounds === "function") {
                 const b = layer.getBounds();
@@ -489,8 +1054,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const compassArrow = document.getElementById("compassArrow");
     const azimuth = Number(result.azimuth);
 
-    if (compassArrow && result.azimuth != null &&
-        Number.isFinite(azimuth)) {
+    if (
+        compassArrow &&
+        result.azimuth != null &&
+        Number.isFinite(azimuth)
+    ) {
         compassArrow.style.transform = `rotate(${azimuth}deg)`;
     }
 
@@ -502,6 +1070,15 @@ document.addEventListener("DOMContentLoaded", () => {
         depositionPoints: depositionPoints.length,
         depositionGrid: depositionGrid.length
     });
+
+    console.info(
+        "Particle categories:",
+        [...new Set(
+            getFeatures("points").map(
+                f => particleCategory(f.properties)
+            )
+        )]
+    );
 });
 </script>
 

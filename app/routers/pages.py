@@ -363,7 +363,9 @@ def build_result_display(result, config, dataset, info):
         "total_particles": config.total_particles,
         "particle_density": config.particle_density,
         "precipitation": config.precipitation,
-        "precipitation_mm": config.precipitation * 1000.0,
+        "precipitation_source": "dataset",
+        "precipitation_source_label": "GFS Surface Accumulated",
+        "precipitation_rate": None,
         "grid_resolution": config.grid_resolution,
         "domain_radius": config.domain_radius,
         "mer_method": config.mer_method,
@@ -827,6 +829,7 @@ async def terrain_status(
         )
 
 
+
 @router.post("/simulations/run", response_class=HTMLResponse)
 async def run_simulation(
     request: Request,
@@ -841,8 +844,6 @@ async def run_simulation(
     duration: float = Form(...),
     time_index: int = Form(0),
     total_particles: int = Form(50000),
-    precipitation_source: str = Form("dataset"),
-    precipitation_rate: float | None = Form(None),
     scavenging_a: float = Form(8.4e-5),
     scavenging_b: float = Form(0.79),
     ventilation_rate: float = Form(4000.0),
@@ -852,7 +853,6 @@ async def run_simulation(
     user: User = Depends(current_user),
     db: Session = Depends(get_db)
 ):
-
     if not user:
         return RedirectResponse("/login", 303)
 
@@ -861,27 +861,9 @@ async def run_simulation(
     )
 
     if not dataset:
-        datasets = db.query(MeteorologyDataset).filter(
-            MeteorologyDataset.status == "valid",
-            MeteorologyDataset.upper_air_path.is_not(None)
-        ).order_by(
-            MeteorologyDataset.created_at.desc()
-        ).all()
-
-        return templates.TemplateResponse(
-            request=request,
-            name="simulations/create.html",
-            context={
-                "request": request,
-                "user": user,
-                "datasets": datasets,
-                "meteorology": None,
-                "error": (
-                    "Meteorology dataset tidak valid "
-                    "atau Upper-Air belum tersedia."
-                )
-            },
-            status_code=400
+        raise HTTPException(
+            status_code=400,
+            detail="Dataset meteorologi tidak valid."
         )
 
     service = None
@@ -890,31 +872,24 @@ async def run_simulation(
     simulation = None
 
     try:
-        upper_air = BASE_DIR / dataset.upper_air_path
         meteorology = MeteorologyService(
-            str(upper_air)
+            str(BASE_DIR / dataset.upper_air_path)
         )
 
         info = meteorology.time_information()
 
-        if time_index < 0 or time_index >= len(info["times"]):
+        if not 0 <= time_index < len(info["times"]):
             raise ValueError(
-                f"Time index {time_index} berada di luar range dataset. "
-                f"Jumlah waktu tersedia: {len(info['times'])}."
+                "Time index di luar cakupan dataset GFS."
             )
 
         grid = dataset_grid_settings(
-            meteorology,
-            latitude,
-            longitude
+            meteorology, latitude, longitude
         )
 
-        if (
-            not dataset.surface_instant_path
-            or not dataset.surface_accum_path
-        ):
+        if not dataset.surface_instant_path or not dataset.surface_accum_path:
             raise ValueError(
-                "Dataset belum memiliki Surface Instant "
+                "Dataset GFS harus memiliki Surface Instant "
                 "dan Surface Accumulated."
             )
 
@@ -924,58 +899,13 @@ async def run_simulation(
         )
 
         surface_profile = surface.surface_profile(
-            latitude,
-            longitude,
-            time_index
+            latitude, longitude, time_index
         )
 
-        
-        if precipitation_source not in (
-            "dataset",
-            "manual",
-            "none"
-        ):
+        if not surface_profile.get("precipitation_available"):
             raise ValueError(
-                "Sumber presipitasi tidak valid."
+                "Presipitasi GFS Surface Accumulated tidak tersedia."
             )
-
-        if precipitation_source == "dataset":
-            if not surface_profile.get("precipitation_available"):
-                raise ValueError(
-                    "Data presipitasi GFS tidak tersedia."
-                )
-
-            precipitation = float(
-                surface_profile["precipitation"]
-            )
-
-            if (
-                not math.isfinite(precipitation)
-                or precipitation < 0
-            ):
-                raise ValueError(
-                    "Presipitasi dataset tidak valid."
-                )
-
-        elif precipitation_source == "manual":
-            if precipitation_rate is None:
-                raise ValueError(
-                    "Laju hujan manual wajib diisi."
-                )
-
-            if (
-                not math.isfinite(precipitation_rate)
-                or precipitation_rate < 0
-            ):
-                raise ValueError(
-                    "Laju hujan manual harus >= 0 mm/jam."
-                )
-
-            precipitation = 0.0
-
-        else:
-            precipitation = 0.0
-
 
         precipitation = float(
             surface_profile["precipitation"]
@@ -983,8 +913,11 @@ async def run_simulation(
 
         if not math.isfinite(precipitation) or precipitation < 0:
             raise ValueError(
-                "Nilai presipitasi tidak valid."
+                "Nilai presipitasi GFS tidak valid."
             )
+
+        precipitation_source = "dataset"
+        precipitation_rate = None
 
         meteorology.close()
         meteorology = None
@@ -992,7 +925,6 @@ async def run_simulation(
         surface.close()
         surface = None
 
-        
         config = SimulationConfig(
             latitude=latitude,
             longitude=longitude,
@@ -1025,7 +957,9 @@ async def run_simulation(
             timestep_factor=config.timestep_factor
         ).parameters()
 
-        effective_dt = float(turbulence_params["timestep"])
+        effective_dt = float(
+            turbulence_params["timestep"]
+        )
 
         print("\n========== INPUT SIMULATION ==========")
         print("Volcano          :", volcano)
@@ -1038,8 +972,8 @@ async def run_simulation(
         print("Timestep M6      :", effective_dt)
         print("Particles        :", config.total_particles)
         print("Time index       :", config.time_index)
-        print("Rain source      :", config.precipitation_source)
-        print("Rain rate        :", config.precipitation_rate)
+        print("Rain source      : GFS DATASET")
+        print("GFS precipitation:", config.precipitation)
         print("Scavenging A     :", config.scavenging_a)
         print("Scavenging B     :", config.scavenging_b)
         print("Ventilation rate :", config.ventilation_rate)
@@ -1047,7 +981,6 @@ async def run_simulation(
         print("Convective vel.  :", config.convective_velocity)
         print("Timestep factor  :", config.timestep_factor)
         print("======================================\n")
-
 
         simulation = Simulation(
             user_id=user.id,
@@ -1096,12 +1029,15 @@ async def run_simulation(
         source_mass = float(
             mass.get("source_mass_kg", 0.0)
         )
+
         deposited_mass = float(
             mass.get("deposited_mass_kg", 0.0)
         )
+
         airborne_mass = float(
             mass.get("airborne_mass_kg", 0.0)
         )
+
         grid_deposited_mass = float(
             deposition.get("total_deposited_mass", 0.0)
         )
@@ -1114,18 +1050,17 @@ async def run_simulation(
         )
 
         print("\n========== MASS BALANCE TEST ==========")
-        print(f"Source mass          : {source_mass:.6f} kg")
-        print(f"Deposited mass       : {deposited_mass:.6f} kg")
-        print(f"Airborne mass        : {airborne_mass:.6f} kg")
-        print(f"Simulated mass       : {validation['simulated_mass']:.6f} kg")
-        print(f"Mass error           : {validation['error']:.12f} kg")
-        print(f"Relative error       : {validation['relative_error']:.12e}")
-        print(f"Tolerance            : {validation['tolerance']:.12e} kg")
-        print(f"Grid deposited mass  : {grid_deposited_mass:.6f} kg")
-        print(f"Grid mass error      : {validation['grid_mass_error']:.12f} kg")
-        print(f"Mass balance valid   : {validation['valid']}")
-        print(f"Grid balance valid   : {validation['grid_valid']}")
-        print(f"Overall valid        : {validation['valid_all']}")
+        print(f"Source mass         : {source_mass:.6f} kg")
+        print(f"Deposited mass      : {deposited_mass:.6f} kg")
+        print(f"Airborne mass       : {airborne_mass:.6f} kg")
+        print(f"Simulated mass      : {validation['simulated_mass']:.6f} kg")
+        print(f"Mass error          : {validation['error']:.12f} kg")
+        print(f"Relative error      : {validation['relative_error']:.12e}")
+        print(f"Grid deposited mass : {grid_deposited_mass:.6f} kg")
+        print(f"Grid mass error     : {validation['grid_mass_error']:.12f} kg")
+        print(f"Mass balance valid  : {validation['valid']}")
+        print(f"Grid balance valid  : {validation['grid_valid']}")
+        print(f"Overall valid       : {validation['valid_all']}")
         print("=======================================\n")
 
         mass["validation"] = validation
@@ -1136,9 +1071,7 @@ async def run_simulation(
         mass["grid_mass_error"] = validation["grid_mass_error"]
 
         result["simulation_id"] = simulation.id
-        result["volcano_name"] = (
-            volcano or "Unknown Volcano"
-        )
+        result["volcano_name"] = volcano or "Unknown Volcano"
         result["vei"] = config.vei
         result["simulation_time"] = str(
             info["times"][config.time_index]
@@ -1151,20 +1084,16 @@ async def run_simulation(
             "altitude": config.altitude,
             "eruption_height": config.eruption_height,
             "eruption_duration": config.eruption_duration,
-            "eruption_duration_hours": (
-                config.eruption_duration / 3600.0
-            ),
+            "eruption_duration_hours": config.eruption_duration / 3600.0,
             "vei": config.vei,
             "duration": config.duration,
             "duration_hours": config.duration / 3600.0,
             "timestep": actual_dt,
             "timestep_source": "M6_LAGRANGIAN",
             "precipitation": config.precipitation,
-            "precipitation_m": config.precipitation,
-            "precipitation_mm": config.precipitation * 1000.0,
-            "precipitation_source": (
-                f"{dataset.name} — surface accumulated"
-            ),
+            "precipitation_source": "dataset",
+            "precipitation_source_label": "GFS Surface Accumulated",
+            "precipitation_rate": None,
             "total_particles": config.total_particles,
             "particle_density": config.particle_density,
             "grid_resolution": config.grid_resolution,
@@ -1191,12 +1120,13 @@ async def run_simulation(
         output_dir = (
             BASE_DIR / "data" / "simulations" / str(simulation.id)
         )
+
         output_dir.mkdir(
             parents=True,
             exist_ok=True
         )
 
-        geojson = result.get("geojson", {})
+        geojson = result.get("geojson") or {}
 
         files = {
             "trajectory_path": (
@@ -1224,10 +1154,12 @@ async def run_simulation(
                 continue
 
             path = output_dir / filename
+
             path.write_text(
                 json.dumps(data, default=str),
                 encoding="utf-8"
             )
+
             saved_paths[key] = str(
                 path.relative_to(BASE_DIR)
             )
@@ -1247,18 +1179,10 @@ async def run_simulation(
             ),
             mass_error=mass.get("error"),
             validation_status=mass.get("valid_all"),
-            trajectory_path=saved_paths.get(
-                "trajectory_path"
-            ),
-            particles_path=saved_paths.get(
-                "particles_path"
-            ),
-            deposition_path=saved_paths.get(
-                "deposition_path"
-            ),
-            deposition_grid_path=saved_paths.get(
-                "deposition_grid_path"
-            )
+            trajectory_path=saved_paths.get("trajectory_path"),
+            particles_path=saved_paths.get("particles_path"),
+            deposition_path=saved_paths.get("deposition_path"),
+            deposition_grid_path=saved_paths.get("deposition_grid_path")
         )
 
         db.add(simulation_result)
@@ -1302,7 +1226,6 @@ async def run_simulation(
             "simulation": simulation
         }
     )
-
 
 @router.get("/meteorology/config", response_class=HTMLResponse)
 async def meteorology_config(

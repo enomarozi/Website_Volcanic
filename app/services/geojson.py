@@ -1,10 +1,10 @@
 class GeoJSONService:
     PARTICLE_COLORS = {
-        "fine": "#3388ff",
-        "small": "#3388ff",
-        "medium": "#ffc107",
-        "coarse": "#dc3545",
-        "large": "#dc3545"
+        "fine": "#dc3545",
+        "small": "#dc3545",
+        "medium": "#fd7e14",
+        "coarse": "#ffc107",
+        "large": "#ffc107"
     }
 
     def _validate_coordinate(self, longitude, latitude):
@@ -98,42 +98,43 @@ class GeoJSONService:
         features = []
 
         for particle in dispersion.get("trajectories", []):
-            for state in particle.get("trajectory", []):
-                lon, lat = self._validate_coordinate(
-                    state["longitude"],
-                    state["latitude"]
-                )
+            trajectory = particle.get("trajectory", [])
 
-                altitude = max(
-                    0.0,
-                    float(state.get("altitude", 0.0))
-                )
+            if not trajectory:
+                continue
 
-                features.append(self._feature(
-                    {
-                        "type": "Point",
-                        "coordinates": [lon, lat, altitude]
-                    },
-                    {
-                        "particle_id": particle.get(
-                            "particle_id",
-                            particle.get("id")
-                        ),
-                        "particle_class": self._particle_class(particle),
-                        "color": self._color(particle),
-                        "time": float(state.get("time", 0.0)),
-                        "time_index": int(
-                            state.get("time_index", 0)
-                        ),
-                        "altitude": altitude,
-                        "mass": float(particle.get("mass", 0.0)),
-                        "deposited": (
-                            particle.get("status") == "deposited"
-                        ),
-                        "u": float(state.get("u", 0.0)),
-                        "v": float(state.get("v", 0.0))
-                    }
-                ))
+            state = trajectory[-1]
+
+            lon, lat = self._validate_coordinate(
+                state["longitude"],
+                state["latitude"]
+            )
+
+            altitude = max(0.0, float(state.get("altitude", 0.0)))
+
+            features.append(self._feature(
+                {
+                    "type": "Point",
+                    "coordinates": [lon, lat, altitude]
+                },
+                {
+                    "particle_id": particle.get(
+                        "particle_id",
+                        particle.get("id")
+                    ),
+                    "particle_class": self._particle_class(particle),
+                    "color": self._color(particle),
+                    "radius": float(particle.get("radius", 0.0)),
+                    "radius_um": float(particle.get("radius", 0.0)) * 1e6,
+                    "time": float(state.get("time", 0.0)),
+                    "time_index": int(state.get("time_index", 0)),
+                    "altitude": altitude,
+                    "mass": float(particle.get("mass", 0.0)),
+                    "deposited": particle.get("status") == "deposited",
+                    "u": float(state.get("u", 0.0)),
+                    "v": float(state.get("v", 0.0))
+                }
+            ))
 
         return self._collection(features)
 
