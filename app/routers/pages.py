@@ -1,5 +1,11 @@
 
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
+from uuid import uuid4
+from urllib.parse import urlencode
+import os
+import re
 import json
 import csv
 import math
@@ -34,6 +40,154 @@ from app.services.noaa_source import acquire_noaa_dataset, SOURCE_CONFIG
 
 
 router = APIRouter()
+
+ACQUIRE_JOBS_DIR = Path(__file__).resolve().parents[2] / "data" / "meteorology" / ".acquire_jobs"
+ACQUIRE_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="noaa-acquire")
+ACQUIRE_LOCK = Lock()
+
+
+def _job_file(job_id):
+    return ACQUIRE_JOBS_DIR / f"{job_id}.json"
+
+
+def _job_write(job_id, **updates):
+    ACQUIRE_JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    with ACQUIRE_LOCK:
+        path = _job_file(job_id)
+        state = json.loads(path.read_text()) if path.exists() else {}
+        state.update(updates)
+        temp = path.with_name(f"{job_id}.{uuid4().hex}.tmp")
+        try:
+            temp.write_text(json.dumps(state, default=str), encoding="utf-8")
+            os.replace(temp, path)
+        finally:
+            temp.unlink(missing_ok=True)
+        return state
+
+
+def _job_read(job_id):
+    try:
+        return json.loads(_job_file(job_id).read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _acquire_worker(job_id, params, user_id, session_factory):
+    db = session_factory()
+    try:
+        _job_write(job_id, status="running", stage="starting", percent=0)
+        def on_progress(event):
+            fraction = float(event.get("fraction", 0))
+            _job_write(
+                job_id, stage=event.get("stage"), kind=event.get("kind"),
+                forecast_hour=event.get("forecast_hour"),
+                percent=min(90, round(fraction * 90, 1)),
+                bytes_received=event.get("bytes_received", 0),
+                bytes_total=event.get("bytes_total", 0),
+            )
+        acquired = acquire_noaa_dataset(
+            params["source"], params["valid_date"], params["forecast_hour"],
+            params["latitude"], params["longitude"], user_id,
+            duration_hours=params["duration_hours"],
+            progress_callback=on_progress,
+        )
+        _job_write(job_id, stage="validating", percent=92)
+        from app.services.netcdf_upload import inspect_netcdf
+        upper = inspect_netcdf(BASE_DIR / acquired["paths"]["upper"], "upper_air")
+        instant = inspect_netcdf(BASE_DIR / acquired["paths"]["instant"], "surface")
+        accum = inspect_netcdf(BASE_DIR / acquired["paths"]["accum"], "surface")
+        _job_write(job_id, stage="saving", percent=97)
+        dataset = MeteorologyDataset(
+            name=acquired["name"],
+            description=(
+                f"Sumber NOAA {acquired['source']}; cycle {acquired['cycle']}; "
+                f"forecast f{params['forecast_hour']:03d}–"
+                f"f{acquired['forecast_end_hour']:03d}; "
+                f"durasi {params['duration_hours']} jam."
+            ),
+            upper_air_path=acquired["paths"]["upper"],
+            surface_instant_path=acquired["paths"]["instant"],
+            surface_accum_path=acquired["paths"]["accum"],
+            start_time=upper.get("start_time"),
+            end_time=upper.get("end_time"),
+            time_count=upper.get("time_count"),
+            interval_hours=upper.get("interval_hours"),
+            variables=json.dumps(sorted(set(
+                upper.get("variables", []) + instant.get("variables", []) + accum.get("variables", [])
+            ))),
+            status="valid", uploaded_by=user_id,
+        )
+        db.add(dataset)
+        db.commit()
+        db.refresh(dataset)
+        query = urlencode({
+            "downloaded": 1, "volcano": params["volcano"],
+            "latitude": params["latitude"], "longitude": params["longitude"],
+            "altitude": params["altitude"],
+        })
+        _job_write(
+            job_id, status="completed", stage="completed", percent=100,
+            dataset_id=dataset.id, redirect_url="/meteorology/config?" + query,
+        )
+    except Exception as exc:
+        db.rollback()
+        _job_write(job_id, status="failed", stage="failed", error=str(exc))
+    finally:
+        db.close()
+
+
+@router.post("/meteorology/acquire/start")
+async def meteorology_acquire_start(
+    request: Request,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    form = await request.form()
+    try:
+        params = {
+            "source": str(form.get("source") or "").strip().upper(),
+            "valid_date": str(form.get("valid_date") or ""),
+            "forecast_hour": int(form.get("forecast_hour") or 0),
+            "latitude": float(form.get("latitude")),
+            "longitude": float(form.get("longitude")),
+            "duration_hours": int(form.get("duration_hours") or 12),
+            "volcano": str(form.get("volcano") or ""),
+            "altitude": str(form.get("altitude") or ""),
+        }
+        if params["source"] not in SOURCE_CONFIG:
+            raise ValueError("Sumber meteorologi tidak dikenal")
+        if not (1 <= params["duration_hours"] <= 72):
+            raise ValueError("Durasi harus 1–72 jam")
+        if not (math.isfinite(params["latitude"]) and math.isfinite(params["longitude"])):
+            raise ValueError("Koordinat tidak valid")
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    from sqlalchemy.orm import sessionmaker
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+    job_id = uuid4().hex
+    _job_write(job_id, owner_id=user.id, status="queued", stage="queued", percent=0)
+    try:
+        ACQUIRE_EXECUTOR.submit(_acquire_worker, job_id, params, user.id, factory)
+    except RuntimeError as exc:
+        _job_write(job_id, status="failed", error=str(exc))
+        raise HTTPException(status_code=503, detail="Worker tidak tersedia") from exc
+    return JSONResponse({"job_id": job_id}, status_code=202)
+
+
+@router.get("/meteorology/acquire/status/{job_id}")
+async def meteorology_acquire_status(job_id: str, user: User = Depends(current_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not re.fullmatch(r"[a-f0-9]{32}", job_id):
+        raise HTTPException(status_code=404, detail="Pekerjaan tidak ditemukan")
+    state = _job_read(job_id)
+    if not state or state.get("owner_id") != user.id:
+        raise HTTPException(status_code=404, detail="Pekerjaan tidak ditemukan")
+    state.pop("owner_id", None)
+    return JSONResponse(state)
+
 
 
 def format_significant(value, digits=4):
