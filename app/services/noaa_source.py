@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlencode
 import hashlib
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -20,18 +21,21 @@ import xarray as xr
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data" / "meteorology"
 CACHE_DIR = DATA_DIR / ".noaa_cache"
-CACHE_VERSION = "v11-aws-3hour-accum"
+CACHE_VERSION = "v12-aws-3hour-accum-rh"
 
 AWS_GFS_BASE = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
+NOMADS_BASE = "https://nomads.ncep.noaa.gov/cgi-bin"
 
 SOURCE_CONFIG = {
     "GFS": {
-        "label": "NOAA GFS 0.25° via AWS",
+        "label": "NOAA GFS 0.25° (NOMADS/AWS)",
         "file_prefix": "gfs",
+        "nomads_filter": "filter_gfs_0p25.pl",
     },
     "GDAS": {
-        "label": "NOAA GDAS 0.25° via AWS",
+        "label": "NOAA GDAS 0.25° (NOMADS/AWS)",
         "file_prefix": "gdas",
+        "nomads_filter": "filter_gdas_0p25.pl",
     },
 }
 
@@ -49,7 +53,7 @@ def _cycle(dt: datetime) -> datetime:
     return dt.replace(hour=(dt.hour // 6) * 6)
 
 
-def _request(url: str, byte_range=None):
+def _request(url: str, byte_range=None, timeout=240):
     headers = {
         "User-Agent": "WebsiteVolcanic/1.0",
         "Accept-Encoding": "identity",
@@ -66,7 +70,7 @@ def _request(url: str, byte_range=None):
     request = Request(url, headers=headers)
 
     try:
-        return urlopen(request, timeout=240)
+        return urlopen(request, timeout=timeout)
     except HTTPError as exc:
         body = exc.read(1000).decode("utf-8", "replace")
         raise RuntimeError(
@@ -172,7 +176,7 @@ def _aws_select(entry: dict, kind: str) -> bool:
 
     if kind == "upper":
         if variable not in {
-            "HGT", "TMP", "UGRD", "VGRD"
+            "HGT", "TMP", "UGRD", "VGRD", "RH"
         }:
             return False
 
@@ -265,7 +269,7 @@ def _download_aws_grib(
 
     selected_names = {entry["variable"] for entry in selected}
     if kind == "upper":
-        required = {"HGT", "TMP", "UGRD", "VGRD"}
+        required = {"HGT", "TMP", "UGRD", "VGRD", "RH"}
         for variable in required:
             levels = set()
             for entry in selected:
@@ -360,7 +364,199 @@ def _download_aws_grib(
     finally:
         temporary.unlink(missing_ok=True)
 
+def _nomads_url(
+    cycle: datetime,
+    forecast_hour: int,
+    kind: str,
+    latitude: float,
+    longitude: float,
+    source: str = "GFS",
+) -> str:
+    source = source.strip().upper()
 
+    if source not in SOURCE_CONFIG:
+        raise ValueError("Sumber harus GFS atau GDAS.")
+
+    if source == "GDAS" and forecast_hour != 0:
+        raise ValueError("GDAS hanya menggunakan f000.")
+
+    prefix = SOURCE_CONFIG[source]["file_prefix"]
+    endpoint = SOURCE_CONFIG[source]["nomads_filter"]
+
+    params = {
+        "file": (
+            f"{prefix}.t{cycle:%H}z."
+            f"pgrb2.0p25.f{forecast_hour:03d}"
+        ),
+        "dir": (
+            f"/{prefix}.{cycle:%Y%m%d}/"
+            f"{cycle:%H}/atmos"
+        ),
+        "subregion": "",
+        "leftlon": longitude - 15.0,
+        "rightlon": longitude + 15.0,
+        "toplat": min(90.0, latitude + 12.0),
+        "bottomlat": max(-90.0, latitude - 12.0),
+    }
+
+    if kind == "upper":
+        variables = {
+            "HGT", "TMP", "UGRD", "VGRD", "RH"
+        }
+
+        for level in PRESSURE_LEVELS:
+            params[f"lev_{level}_mb"] = "on"
+
+    elif kind == "instant":
+        variables = {
+            "TMP", "PRES", "FRICV",
+            "HPBL", "UGRD", "VGRD", "RH"
+        }
+
+        params["lev_surface"] = "on"
+        params["lev_2_m_above_ground"] = "on"
+        params["lev_10_m_above_ground"] = "on"
+
+    elif kind == "accum":
+        variables = {"SHTFL", "APCP"}
+        params["lev_surface"] = "on"
+
+    else:
+        raise ValueError(
+            f"Jenis data tidak dikenal: {kind}"
+        )
+
+    for variable in sorted(variables):
+        params[f"var_{variable}"] = "on"
+
+    return (
+        f"{NOMADS_BASE}/{endpoint}?"
+        f"{urlencode(params)}"
+    )
+
+def _download_nomads_grib(
+    cycle: datetime,
+    forecast_hour: int,
+    kind: str,
+    latitude: float,
+    longitude: float,
+    destination: Path,
+    source: str = "GFS",
+    progress_callback=None,
+) -> None:
+    url = _nomads_url(
+        cycle=cycle,
+        forecast_hour=forecast_hour,
+        kind=kind,
+        latitude=latitude,
+        longitude=longitude,
+        source=source,
+    )
+
+    destination.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    temporary = destination.with_suffix(".part")
+
+    try:
+        for attempt in range(2):
+            try:
+                print(
+                    f"[NOMADS] {source} "
+                    f"f{forecast_hour:03d} {kind} "
+                    f"attempt={attempt + 1}"
+                )
+
+                with _request(
+                    url, timeout=60
+                ) as response:
+
+                    if response.status != 200:
+                        raise RuntimeError(
+                            f"NOMADS HTTP {response.status}"
+                        )
+
+                    total = int(
+                        response.headers.get(
+                            "Content-Length"
+                        ) or 0
+                    )
+
+                    received = 0
+
+                    with temporary.open("wb") as output:
+                        while True:
+                            chunk = response.read(
+                                1024 * 1024
+                            )
+
+                            if not chunk:
+                                break
+
+                            output.write(chunk)
+                            received += len(chunk)
+
+                            if progress_callback:
+                                progress_callback(
+                                    "download",
+                                    kind,
+                                    forecast_hour,
+                                    min(
+                                        received / total,
+                                        1.0
+                                    ) if total else 0.0,
+                                    received,
+                                    total,
+                                )
+
+                    if total and received != total:
+                        raise RuntimeError(
+                            "Download NOMADS tidak lengkap."
+                        )
+
+                _validate_grib(temporary)
+                temporary.replace(destination)
+
+                if progress_callback:
+                    progress_callback(
+                        "download",
+                        kind,
+                        forecast_hour,
+                        1.0,
+                        received,
+                        total,
+                    )
+
+                print(
+                    f"[NOMADS] Download berhasil: "
+                    f"{received / 1024**2:.2f} MB"
+                )
+
+                return
+
+            except (
+                RuntimeError,
+                ValueError,
+                OSError,
+                TimeoutError,
+            ) as exc:
+                temporary.unlink(missing_ok=True)
+
+                if any(
+                    f"HTTP {code}" in str(exc)
+                    for code in (400, 401, 403, 404)
+                ):
+                    raise
+
+                if attempt == 1:
+                    raise
+
+                time.sleep(2)
+
+    finally:
+        temporary.unlink(missing_ok=True)
 
 def _subset_gfs(
     ds: xr.Dataset,
@@ -562,7 +758,15 @@ def _rename_by_metadata(
         text = _metadata_text(variable)
         lower = name.lower()
 
-        if kind == "accum":
+        if kind == "upper":
+            if (
+                lower in {"r", "rh"}
+                or "relative humidity" in text
+                or "relative_humidity" in text
+            ) and "rh" not in ds.data_vars:
+                metadata_rename[name] = "rh"
+
+        elif kind == "accum":
             if (
                 lower in {"apcp", "tp"}
                 or "total precipitation" in text
@@ -796,7 +1000,7 @@ def _convert(
                     })
 
             required = {
-                "u", "v", "t", "z", "pressure_level"
+                "u", "v", "t", "z", "rh", "pressure_level"
             }
 
             available = (
@@ -811,6 +1015,22 @@ def _convert(
                 raise ValueError(
                     f"Upper-air kehilangan: {sorted(missing)}"
                 )
+
+            units = str(
+                ds["rh"].attrs.get("units", "")
+            ).strip().lower()
+
+            if units not in {"%", "percent"}:
+                raise ValueError(
+                    f"Satuan RH upper-air tidak dikenal: {units!r}"
+                )
+
+            if "pressure_level" not in ds["rh"].dims:
+                raise ValueError(
+                    "RH upper-air tidak memiliki pressure level."
+                )
+
+            ds["rh"].attrs["units"] = "%"
 
         elif kind == "instant":
             required = {"t2m", "sp", "zust"}
@@ -960,6 +1180,247 @@ def _download_convert_aws_cached(
     if progress_callback:
         progress_callback("convert", kind, forecast_hour, 1.0, 0, 0)
 
+def _download_convert_hybrid_cached(
+    cycle: datetime,
+    forecast_hour: int,
+    kind: str,
+    latitude: float,
+    longitude: float,
+    destination: Path,
+    temp_dir: Path,
+    source: str = "GFS",
+    progress_callback=None,
+) -> str:
+    source = source.strip().upper()
+
+    aws_url = _aws_gfs_url(
+        cycle, forecast_hour, source
+    )
+
+    aws_key = _cache_key(
+        f"AWS-{source}",
+        aws_url,
+        kind,
+        latitude,
+        longitude,
+    )
+
+    aws_nc = CACHE_DIR / f"{aws_key}.nc"
+
+    nomads_url = _nomads_url(
+        cycle,
+        forecast_hour,
+        kind,
+        latitude,
+        longitude,
+        source,
+    )
+
+    nomads_key = _cache_key(
+        f"NOMADS-{source}",
+        nomads_url,
+        kind,
+        latitude,
+        longitude,
+    )
+
+    nomads_nc = CACHE_DIR / f"{nomads_key}.nc"
+
+    def valid_cache(path):
+        if not path.exists():
+            return False
+
+        try:
+            with xr.open_dataset(path) as ds:
+                if ds.sizes.get("valid_time") != 1:
+                    return False
+
+                if kind == "upper":
+                    required = {
+                        "u", "v", "t", "z", "rh"
+                    }
+
+                    return (
+                        required.issubset(ds.data_vars)
+                        and "pressure_level" in ds.coords
+                        and set(
+                            ds.pressure_level.values.tolist()
+                        ) == set(PRESSURE_LEVELS)
+                        and str(
+                            ds["rh"].attrs.get("units", "")
+                        ) == "%"
+                    )
+
+                if kind == "instant":
+                    return {
+                        "t2m", "sp", "zust"
+                    }.issubset(ds.data_vars)
+
+                if kind == "accum":
+                    return {
+                        "tp", "sshf",
+                        "tp_start_step", "tp_end_step",
+                        "sshf_start_step", "sshf_end_step",
+                    }.issubset(ds.data_vars)
+
+                return False
+
+        except Exception:
+            return False
+
+    for provider, cached in (
+        ("NOMADS", nomads_nc),
+        ("AWS", aws_nc),
+    ):
+        if valid_cache(cached):
+            shutil.copy2(cached, destination)
+
+            print(
+                f"[CACHE] {provider} {source} "
+                f"f{forecast_hour:03d} {kind}"
+            )
+
+            if progress_callback:
+                progress_callback(
+                    "cache",
+                    kind,
+                    forecast_hour,
+                    1.0,
+                    0,
+                    0,
+                )
+
+            return provider
+
+        if cached.exists():
+            cached.unlink(missing_ok=True)
+
+    nomads_error = None
+
+    if kind != "accum":
+        temporary_grib = temp_dir / (
+            f"nomads_{source.lower()}_"
+            f"{kind}_f{forecast_hour:03d}.grib2"
+        )
+
+        temporary_nc = temp_dir / (
+            f"nomads_{source.lower()}_"
+            f"{kind}_f{forecast_hour:03d}.nc"
+        )
+
+        try:
+            _download_nomads_grib(
+                cycle=cycle,
+                forecast_hour=forecast_hour,
+                kind=kind,
+                latitude=latitude,
+                longitude=longitude,
+                destination=temporary_grib,
+                source=source,
+                progress_callback=progress_callback,
+            )
+
+            if progress_callback:
+                progress_callback(
+                    "convert",
+                    kind,
+                    forecast_hour,
+                    0.0,
+                    0,
+                    0,
+                )
+
+            _convert(
+                temporary_grib,
+                temporary_nc,
+                kind,
+                latitude=latitude,
+                longitude=longitude,
+            )
+
+            if not valid_cache(temporary_nc):
+                raise ValueError(
+                    "NetCDF NOMADS tidak lengkap."
+                )
+
+            shutil.copy2(
+                temporary_nc, destination
+            )
+
+            shutil.copy2(
+                temporary_nc, nomads_nc
+            )
+
+            if progress_callback:
+                progress_callback(
+                    "convert",
+                    kind,
+                    forecast_hour,
+                    1.0,
+                    0,
+                    0,
+                )
+
+            return "NOMADS"
+
+        except (
+            RuntimeError,
+            ValueError,
+            OSError,
+            TimeoutError,
+        ) as exc:
+            nomads_error = str(exc)
+
+            print(
+                f"[NOMADS] Gagal: {exc}"
+            )
+
+            print(
+                "[FALLBACK] Beralih ke AWS S3"
+            )
+
+        finally:
+            temporary_grib.unlink(
+                missing_ok=True
+            )
+
+            temporary_nc.unlink(
+                missing_ok=True
+            )
+
+    else:
+        print(
+            "[AWS] Surface accumulated: "
+            "menggunakan seleksi interval AWS"
+        )
+
+    try:
+        _download_convert_aws_cached(
+            cycle=cycle,
+            forecast_hour=forecast_hour,
+            kind=kind,
+            latitude=latitude,
+            longitude=longitude,
+            destination=destination,
+            temp_dir=temp_dir,
+            source=source,
+            progress_callback=progress_callback,
+        )
+
+        if not valid_cache(destination):
+            raise ValueError(
+                "NetCDF AWS tidak lengkap."
+            )
+
+        return "AWS"
+
+    except Exception as exc:
+        raise RuntimeError(
+            f"Gagal memperoleh {source} "
+            f"f{forecast_hour:03d} {kind}.\n"
+            f"NOMADS: {nomads_error or 'tidak digunakan'}\n"
+            f"AWS: {exc}"
+        ) from exc
 
 def _normalize_three_hour_accum(files: list[Path]) -> None:
     previous = {"tp": {}, "sshf": {}}
@@ -1201,7 +1662,7 @@ def _download_gfs(
     temp_dir: Path,
     progress_callback=None,
 ) -> str:
-    _download_convert_aws_cached(
+    return _download_convert_hybrid_cached(
         cycle=cycle,
         forecast_hour=forecast_hour,
         kind=kind,
@@ -1212,7 +1673,6 @@ def _download_gfs(
         source="GFS",
         progress_callback=progress_callback,
     )
-    return "AWS"
 
 
 def _download_gdas(
@@ -1225,7 +1685,7 @@ def _download_gdas(
     temp_dir: Path,
     progress_callback=None,
 ) -> str:
-    _download_convert_aws_cached(
+    return _download_convert_hybrid_cached(
         cycle=cycle,
         forecast_hour=forecast_hour,
         kind=kind,
@@ -1236,7 +1696,6 @@ def _download_gdas(
         source="GDAS",
         progress_callback=progress_callback,
     )
-    return "AWS"
 
 
 def acquire_noaa_dataset(

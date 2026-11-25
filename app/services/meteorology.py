@@ -105,7 +105,36 @@ class MeteorologyService:
             geopotential_variable = variables.get(
                 "geopotential", variables.get("z")
             )
+            humidity_variable = variables.get(
+                "rh", variables.get("r")
+            )
 
+            humidity_values = None
+
+            if humidity_variable is not None:
+                units = str(
+                    getattr(humidity_variable, "units", "")
+                ).strip().lower()
+
+                if units not in {"%", "percent"}:
+                    raise ValueError(
+                        f"Unsupported relative humidity units: {units!r}"
+                    )
+
+                expected_dims = (
+                    "valid_time",
+                    "pressure_level",
+                    "latitude",
+                    "longitude"
+                )
+
+                if tuple(humidity_variable.dimensions) != expected_dims:
+                    raise ValueError(
+                        f"Invalid RH dimensions: "
+                        f"{humidity_variable.dimensions}"
+                    )
+
+                humidity_values = self._array(humidity_variable)
             geopotential_values = (
                 self._array(geopotential_variable)
                 if geopotential_variable is not None
@@ -133,7 +162,8 @@ class MeteorologyService:
                     else None
                 ),
                 "geopotential": geopotential_values,
-                "altitude": altitude_values
+                "altitude": altitude_values,
+                "rh": humidity_values
             }
 
             self._validate()
@@ -194,7 +224,7 @@ class MeteorologyService:
             )
 
         for name in (
-            "temperature", "geopotential", "altitude"
+            "temperature", "geopotential", "altitude","rh"
         ):
             values = data[name]
 
@@ -202,7 +232,20 @@ class MeteorologyService:
                 raise ValueError(
                     f"{name} dimensions do not match wind data."
                 )
+        rh = data["rh"]
 
+        if rh is not None:
+            finite = np.isfinite(rh)
+
+            if not np.any(finite):
+                raise ValueError(
+                    "RH dataset contains no valid values."
+                )
+
+            if np.any(rh[finite] < 0.0):
+                raise ValueError(
+                    "RH dataset contains negative values."
+                ) 
         for name in ("latitude", "longitude"):
             axis = data[name]
 
@@ -606,7 +649,8 @@ class MeteorologyService:
             "u": interpolate("u"),
             "v": interpolate("v"),
             "temperature": interpolate("temperature"),
-            "altitude": interpolate("altitude")
+            "altitude": interpolate("altitude"),
+            "rh": interpolate("rh")
         }
 
     def nearest_grid(self, latitude, longitude):
@@ -687,6 +731,11 @@ class MeteorologyService:
         altitude = data["altitude"][
             time_index, :, i, j
         ]
+        rh = (
+            data["rh"][time_index, :, i, j]
+            if data["rh"] is not None
+            else None
+        )
 
         potential_temperature = None
 
@@ -722,7 +771,8 @@ class MeteorologyService:
                 level["potential_temperature"] = float(
                     potential_temperature[index]
                 )
-
+            if rh is not None:
+                level["rh"] = self._valid(rh[index])
             profile.append(level)
 
         return {
@@ -741,6 +791,11 @@ class MeteorologyService:
                 else None
             ),
             "altitude": altitude.tolist(),
+            "rh": (
+                [self._valid(value) for value in rh]
+                if rh is not None
+                else None
+            ),
             "potential_temperature": (
                 potential_temperature.tolist()
                 if potential_temperature is not None
@@ -1066,7 +1121,129 @@ class MeteorologyService:
             "altitude": float(altitude),
             "elapsed_seconds": target
         }
+    def humidity_at_altitude(
+        self, latitude, longitude,
+        altitude, time_index=0
+    ):
+        profile = self.bilinear_profile(
+            latitude, longitude, time_index
+        )
 
+        if profile["rh"] is None:
+            raise ValueError(
+                "Upper-air relative humidity is unavailable."
+            )
+
+        z = np.asarray(
+            profile["altitude"], dtype=float
+        )
+
+        rh = np.asarray(
+            profile["rh"], dtype=float
+        )
+
+        valid = (
+            np.isfinite(z)
+            & np.isfinite(rh)
+        )
+
+        if np.count_nonzero(valid) < 2:
+            raise ValueError(
+                "RH profile has fewer than two valid levels."
+            )
+
+        z = z[valid]
+        rh = rh[valid]
+
+        order = np.argsort(z)
+
+        z = z[order]
+        rh = rh[order]
+
+        if np.any(np.diff(z) <= 0):
+            raise ValueError(
+                "RH altitude levels must be distinct."
+            )
+
+        target = float(altitude)
+
+        if not math.isfinite(target):
+            raise ValueError(
+                "Invalid particle altitude."
+            )
+
+        if target < z[0]:
+            target = float(z[0])
+
+        elif target > z[-1]:
+            if target - z[-1] > 100.0:
+                raise ValueError(
+                    "Particle altitude exceeds RH profile coverage."
+                )
+
+            target = float(z[-1])
+
+        return float(np.interp(target, z, rh))
+    def humidity_at_elapsed(
+        self, latitude, longitude,
+        altitude, elapsed_seconds
+    ):
+        times = np.asarray(
+            self.time_information()["elapsed_seconds"],
+            dtype=float
+        )
+
+        target = float(elapsed_seconds)
+
+        if not math.isfinite(target):
+            raise ValueError(
+                "Invalid meteorological elapsed time."
+            )
+
+        if target < times[0] or target > times[-1]:
+            raise ValueError(
+                "Time is outside meteorological coverage."
+            )
+
+        upper = int(
+            np.searchsorted(
+                times, target, side="left"
+            )
+        )
+
+        if upper == 0:
+            lower = upper = 0
+
+        elif upper >= len(times):
+            lower = upper = len(times) - 1
+
+        elif times[upper] == target:
+            lower = upper
+
+        else:
+            lower = upper - 1
+
+        a = self.humidity_at_altitude(
+            latitude, longitude,
+            altitude, lower
+        )
+
+        if lower == upper:
+            return a
+
+        b = self.humidity_at_altitude(
+            latitude, longitude,
+            altitude, upper
+        )
+
+        fraction = (
+            (target - times[lower])
+            / (times[upper] - times[lower])
+        )
+
+        return float(
+            a + (b - a) * fraction
+        )
     def dataset_information(self):
         data = self.load()
         info = self.time_information()
@@ -1097,7 +1274,11 @@ class MeteorologyService:
             "pressure_max": float(
                 np.max(data["pressure_level"])
             ),
-            "interval_hours": info["interval_hours"]
+            "interval_hours": info["interval_hours"],
+            "has_relative_humidity": data["rh"] is not None,
+            "relative_humidity_units": (
+                "%" if data["rh"] is not None else None
+            )
         }
 
     def close(self):

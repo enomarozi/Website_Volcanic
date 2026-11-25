@@ -146,7 +146,7 @@ class DispersionService:
         return result
 
     
-    def _rain_and_humidity(self, conditions):
+    def _rain_and_humidity(self, conditions,latitude,longitude,altitude,elapsed_seconds):
         source = getattr(
             self,
             "precipitation_source",
@@ -186,24 +186,20 @@ class DispersionService:
                 f"Precipitation source tidak dikenal: {source}"
             )
 
-        rh = self._first(
-            conditions,
-            "relative_humidity",
-            "rh"
-        )
+        rh = None
 
-        if rh is not None:
-            rh = self._number(
-                rh,
-                "Relative humidity",
-                minimum=0.0,
-                maximum=100.0
+        if rain > 0.0:
+            rh = self.meteorology.humidity_at_elapsed(
+                latitude=latitude,
+                longitude=longitude,
+                altitude=altitude,
+                elapsed_seconds=elapsed_seconds
             )
 
-        if rain > 0 and rh is None:
-            raise ValueError(
-                "Relative humidity diperlukan untuk "
-                "perhitungan wet scavenging."
+            rh = self._number(
+                rh,
+                "Upper-air relative humidity",
+                minimum=0.0
             )
 
         return rain, rh
@@ -484,7 +480,7 @@ class DispersionService:
                                 )
                                 self._perf["surface_calls"] += 1
 
-                            rain, rh = self._rain_and_humidity(conditions)
+                            rain, rh = self._rain_and_humidity( conditions=conditions, latitude=lat, longitude=lon, altitude=alt, elapsed_seconds=start_time + end_time )
                             friction = None
                             roughness = None
 
@@ -607,6 +603,9 @@ class DispersionService:
                                     ra=rates["ra"],
                                     rs=rates["rs"],
                                     relative_humidity=rh,
+                                    relative_humidity_source=(
+                                        "upper_air" if rh is not None else None
+                                    ),
                                     rain_rate_mm_hour=rain,
                                     scavenging_type=(
                                         self.deposition.scavenging_type(rh)

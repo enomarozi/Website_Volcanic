@@ -146,10 +146,19 @@ class DepositionService:
     def scavenging_type(self, rh):
         if rh is None:
             return None
+
         humidity = self._finite(rh, "Relative humidity")
-        if not 0 <= humidity <= 100:
-            raise ValueError("Relative humidity harus 0-100%.")
-        return "in-cloud" if humidity >= self.rh_threshold else "below-cloud"
+
+        if humidity < 0.0:
+            raise ValueError(
+                "Relative humidity tidak boleh negatif."
+            )
+
+        return (
+            "in-cloud"
+            if humidity >= self.rh_threshold
+            else "below-cloud"
+        )
 
     def scavenging_coefficient(self, rain_rate, rh=None):
         rain = self._finite(
