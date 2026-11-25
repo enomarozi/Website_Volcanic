@@ -109,23 +109,10 @@ class DispersionService:
                 break
 
         if self.surface_meteorology:
-            surface_index = (
-                self.surface_meteorology.time_index_at_elapsed(
-                    elapsed_seconds
-                )
-            )
-
-            rain_index = (
-                self.surface_meteorology.precipitation_index_at_elapsed(
-                    elapsed_seconds
-                )
-            )
-
             surface = self.surface_meteorology.surface_profile(
                 lat,
                 lon,
-                surface_index,
-                precipitation_index=rain_index
+                elapsed_seconds=elapsed_seconds
             )
 
             if isinstance(surface, dict):
@@ -274,7 +261,7 @@ class DispersionService:
         print("============================================\n", flush=True)
 
     
-    def simulate(self, particles, duration, dt=None, start_time_index=0):
+    def simulate( self, particles, duration, dt=None, start_time_index=0, start_elapsed_seconds=None ):
         if self.terrain is None:
             raise RuntimeError("TerrainService wajib tersedia.")
         if not particles:
@@ -299,10 +286,25 @@ class DispersionService:
         if not times or not 0 <= start_time_index < len(times):
             raise ValueError("Time index meteorologi tidak valid.")
 
-        start_time = float(times[start_time_index])
+        start_time = (
+            float(times[start_time_index])
+            if start_elapsed_seconds is None
+            else float(start_elapsed_seconds)
+        )
 
-        if start_time + duration > float(times[-1]) + 1e-6:
-            raise ValueError("Durasi simulasi melewati cakupan GFS.")
+        if (
+            not math.isfinite(start_time)
+            or start_time < float(times[0])
+            or start_time > float(times[-1])
+        ):
+            raise ValueError(
+                "Waktu mulai simulasi di luar cakupan meteorologi."
+            )
+
+        if start_time + duration > float(times[-1]):
+            raise ValueError(
+                "Durasi simulasi melewati cakupan meteorologi."
+            )
 
         rng = self.particle_simulation.rng
         steps = math.ceil(duration / dt)
@@ -685,6 +687,8 @@ class DispersionService:
                 "dt": dt,
                 "steps": steps,
                 "start_time_index": start_time_index,
+                "start_elapsed_seconds": start_time,
+                "end_elapsed_seconds": start_time + duration,
                 "trajectories": trajectories,
                 "meteorology": info
             }

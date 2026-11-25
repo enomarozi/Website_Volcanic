@@ -29,10 +29,11 @@ class LandCoverService:
         90: "Herbaceous wetland", 95: "Mangroves", 100: "Moss and lichen",
     }
 
-    def __init__(self, data_dir, timeout=180):
+    def __init__(self, data_dir, timeout=180, terrain=None):
         self.data_dir = Path(data_dir).resolve()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.timeout = timeout
+        self.terrain = terrain
         self._lock = threading.RLock()
         self._dataset_cache = {}
 
@@ -44,7 +45,7 @@ class LandCoverService:
             "landcover_name": "Open ocean (fallback)",
             "roughness_length": self.OCEAN_ROUGHNESS,
             "roughness_units": "m",
-            "landcover_source": "Ocean fallback",
+            "landcover_source": "Ocean fallback (Natural Earth land mask)",
             "landcover_tile": tile,
             "surface_type": "ocean",
         }
@@ -137,7 +138,8 @@ class LandCoverService:
             return path
 
         if tile in self.OCEAN_TILES:
-            return None
+            if self.terrain is not None and not self.terrain.is_land(lat, lon):
+                return None
 
         return self._download_tile(tile)
 
@@ -190,9 +192,12 @@ class LandCoverService:
         value = values[0]
 
         if src.nodata is not None and value == src.nodata:
+            if self.terrain is not None and not self.terrain.is_land(lat, lon):
+                return self._ocean_surface(lat, lon, tile)
+
             raise ValueError(
                 f"Data land cover NoData pada koordinat ({lat}, {lon}). "
-                "Koordinat mungkin berada di laut atau area tanpa data."
+                "Koordinat tidak terkonfirmasi sebagai laut."
             )
 
         if not np.isfinite(value):

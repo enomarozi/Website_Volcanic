@@ -3,11 +3,11 @@ import math
 class EruptionService:
     def __init__(self, rho_air=1.225, gravity=9.81, alpha=0.1, beta=0.5, z1=2.8,
                  mer_method="degruyter_bonadonna", source_temperature=1200.0,
-                 gamma=1.41, reference_pressure=1000.0, default_n=0.011):
+                 gamma=1.41, reference_pressure=1000.0):
         self.rho_air=float(rho_air); self.gravity=float(gravity); self.alpha=float(alpha)
         self.beta=float(beta); self.z1=float(z1); self.mer_method=str(mer_method)
         self.source_temperature=float(source_temperature); self.gamma=float(gamma)
-        self.reference_pressure=float(reference_pressure); self.default_n=float(default_n)
+        self.reference_pressure=float(reference_pressure)
         if min(self.rho_air,self.gravity,self.z1,self.source_temperature,self.gamma,self.reference_pressure)<=0:
             raise ValueError("Invalid eruption constants.")
 
@@ -103,13 +103,50 @@ class EruptionService:
         mean_u=sum(x["u"] for x in direction_levels)/len(direction_levels)
         mean_v=sum(x["v"] for x in direction_levels)/len(direction_levels)
         bearing=math.degrees(math.atan2(mean_u,mean_v))%360.0
-        theta_levels=[x for x in levels if x["theta"] is not None and x["theta"]>0]
-        n=self.default_n; dtheta_dz=0.0; theta_mean=None
-        if len(theta_levels)>=2 and theta_levels[-1]["z"]>theta_levels[0]["z"]:
-            theta_mean=sum(x["theta"] for x in theta_levels)/len(theta_levels)
-            dtheta_dz=(theta_levels[-1]["theta"]-theta_levels[0]["theta"])/(theta_levels[-1]["z"]-theta_levels[0]["z"])
-            n2=self.gravity/max(theta_mean,1e-12)*dtheta_dz
-            if n2>0 and math.isfinite(n2): n=math.sqrt(n2)
+        theta_levels = [
+            x for x in levels
+            if x["theta"] is not None
+            and math.isfinite(x["theta"])
+            and x["theta"] > 0
+        ]
+
+        if len(theta_levels) < 2:
+            raise ValueError(
+                "At least two valid potential temperature levels "
+                "are required for Brunt-Vaisala calculation."
+            )
+
+        z_bottom = theta_levels[0]["z"]
+        z_top = theta_levels[-1]["z"]
+
+        if z_top <= z_bottom:
+            raise ValueError(
+                "Invalid atmospheric altitude range."
+            )
+
+        theta_mean = sum(
+            x["theta"] for x in theta_levels
+        ) / len(theta_levels)
+
+        dtheta_dz = (
+            theta_levels[-1]["theta"]
+            - theta_levels[0]["theta"]
+        ) / (z_top - z_bottom)
+
+        n2 = self.gravity / theta_mean * dtheta_dz
+
+        if not math.isfinite(n2):
+            raise ValueError(
+                "Invalid Brunt-Vaisala frequency squared."
+            )
+
+        if n2 <= 0:
+            raise ValueError(
+                "Atmospheric profile is neutral or unstable. "
+                "D&B MER requires positive Brunt-Vaisala frequency."
+            )
+
+        n = math.sqrt(n2)
         surface_temp=next((x["temperature"] for x in levels if x["temperature"] is not None),None)
         if surface_temp is None: surface_temp=theta_levels[0]["theta"] if theta_levels else 298.0
         rho_source=self.rho_air*float(surface_temp)/self.source_temperature
@@ -127,6 +164,7 @@ class EruptionService:
         print(f"Mean wind speed     : {mean_wind:.6f} m/s")
         print(f"Theta mean          : {theta_mean}")
         print(f"dTheta/dz           : {dtheta_dz:.9f} K/m")
+        print(f"Brunt-Vaisala N2    : {n2:.9e} 1/s2")
         print(f"Brunt-Vaisala N     : {n:.9f} 1/s")
         print(f"Ambient temperature : {surface_temp:.4f} K")
         print(f"Source temperature  : {self.source_temperature:.4f} K")
@@ -144,7 +182,7 @@ class EruptionService:
             raise ValueError("MER calculation returned an invalid result; check meteorological profile and parameters.")
         return {"eruption_height":h,"eruption_duration":duration,"mean_wind_speed":mean_wind,
                 "mean_u_column":mean_u,"mean_v_column":mean_v,"wind_bearing_degrees":bearing,
-                "theta_mean":theta_mean,"dtheta_dz":dtheta_dz,"brunt_vaisala":n,
+                "theta_mean": theta_mean, "dtheta_dz": dtheta_dz, "brunt_vaisala_squared": n2, "brunt_vaisala": n,
                 "source_density":rho_source,"reduced_gravity":reduced_gravity,"mer":mer,
                 "total_mass":total_mass,"buoyancy_term":buoyancy,"wind_term":wind_term,
                 "mer_method":self.mer_method,"profile_levels":len(levels)}

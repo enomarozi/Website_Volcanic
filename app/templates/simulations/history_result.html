@@ -72,6 +72,10 @@
                     <div>{{ "%.2f"|format(simulation.eruption_height) }} m</div>
                 </div>
                 <div class="col-md-3">
+                    <small class="text-muted">Eruption Start Time (UTC)</small>
+                    <div>{{ simulation.start_time or "Not Available" }}</div>
+                </div>
+                <div class="col-md-3">
                     <small class="text-muted">Eruption Duration</small>
                     <div>{{ "%.2f"|format(simulation.eruption_duration) }} s</div>
                 </div>

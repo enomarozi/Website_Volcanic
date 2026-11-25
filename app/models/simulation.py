@@ -19,6 +19,7 @@ class Simulation(Base):
     duration:Mapped[float]=mapped_column(Float,nullable=False)
     timestep:Mapped[float]=mapped_column(Float,nullable=False)
     time_index:Mapped[int]=mapped_column(Integer,nullable=False)
+    start_time:Mapped[str|None]=mapped_column(String(40),nullable=True)
     precipitation:Mapped[float]=mapped_column(Float,default=0.0,nullable=False)
     total_particles:Mapped[int]=mapped_column(Integer,nullable=False)
     particle_density:Mapped[float]=mapped_column(Float,nullable=False)

@@ -104,8 +104,8 @@ def _aws_gfs_url(
     source = source.strip().upper()
     if source not in SOURCE_CONFIG:
         raise ValueError("Sumber harus GFS atau GDAS.")
-    if source == "GDAS" and forecast_hour != 0:
-        raise ValueError("GDAS hanya menggunakan analisis f000.")
+    if source == "GDAS" and forecast_hour not in {0, 3, 6}:
+        raise ValueError("GDAS hanya mendukung f000, f003 dan f006.")
     prefix = SOURCE_CONFIG[source]["file_prefix"]
     return (
         f"{AWS_GFS_BASE}/{prefix}.{cycle:%Y%m%d}/"
@@ -377,8 +377,8 @@ def _nomads_url(
     if source not in SOURCE_CONFIG:
         raise ValueError("Sumber harus GFS atau GDAS.")
 
-    if source == "GDAS" and forecast_hour != 0:
-        raise ValueError("GDAS hanya menggunakan f000.")
+    if source == "GDAS" and forecast_hour not in {0, 3, 6}:
+        raise ValueError("GDAS hanya mendukung f000, f003 dan f006.")
 
     prefix = SOURCE_CONFIG[source]["file_prefix"]
     endpoint = SOURCE_CONFIG[source]["nomads_filter"]
@@ -1552,6 +1552,7 @@ def _combine_forecasts(
 
                 ds = ds.drop_vars("time")
 
+            ds = ds.sortby(["latitude", "longitude"])
             if datasets:
                 first = datasets[0]
 
@@ -1749,10 +1750,16 @@ def acquire_noaa_dataset(
             "Duration hours harus 1–72 jam."
         )
 
-    if source == "GDAS" and forecast_hour != 0:
-        raise ValueError(
-            "Untuk GDAS, gunakan forecast hour 0."
-        )
+    if source == "GDAS":
+        if forecast_hour != 0:
+            raise ValueError(
+                "Untuk GDAS, gunakan forecast hour 0."
+            )
+
+        if duration_hours > 6:
+            raise ValueError(
+                "Durasi GDAS maksimal 6 jam."
+            )
 
     try:
         dt = datetime.fromisoformat(
@@ -1776,7 +1783,11 @@ def acquire_noaa_dataset(
     )
 
     if source == "GDAS":
-        hours = [0]
+        end_hour = int(np.ceil(duration_hours / 3)) * 3
+
+        hours = list(
+            range(0, end_hour + 1, 3)
+        )
     else:
         end_hour = (
             forecast_hour
@@ -1820,7 +1831,11 @@ def acquire_noaa_dataset(
                 "bytes_received": int(received), "bytes_total": int(total),
             })
     planned = {
-        kind: (list(range(3, hours[-1] + 1, 3)) if kind == "accum" and source == "GFS" else hours)
+        kind: (
+            list(range(3, hours[-1] + 1, 3))
+            if kind == "accum"
+            else hours
+        )
         for kind in ("upper", "instant", "accum")
     }
     total_units = sum(2 * len(items) + 1 for items in planned.values()) + 1
@@ -1851,7 +1866,7 @@ def acquire_noaa_dataset(
                 forecast_files = []
                 download_sources[kind] = {}
 
-                kind_hours = (list(range(3, hours[-1] + 1, 3)) if kind == "accum" and source == "GFS" else hours)
+                kind_hours = planned[kind]
                 if kind == "accum" and not kind_hours:
                     raise ValueError("Surface Accum memerlukan minimal f003; rentang waktu tidak cukup")
                 for hour in kind_hours:
@@ -1915,10 +1930,12 @@ def acquire_noaa_dataset(
 
                 created.append(dest)
 
-                if kind == "accum" and source == "GFS":
+                if kind == "accum":
                     _normalize_three_hour_accum(forecast_files)
+
                     forecast_files = [
-                        path for hour, path in zip(kind_hours, forecast_files)
+                        path
+                        for hour, path in zip(kind_hours, forecast_files)
                         if hour in hours
                     ]
                 emit("combining", kind, None, finished_units / total_units)

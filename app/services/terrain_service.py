@@ -150,26 +150,24 @@ class TerrainService:
         lat, lon = float(lat), float(lon)
         tile = self.tile_name(lat, lon)
 
-        if not self.is_land(lat, lon):
-            return {
-                "elevation": 0.0,
-                "latitude": lat,
-                "longitude": lon,
-                "terrain_raster": None,
-                "terrain_tile": tile,
-                "dem_source": "Sea level (Natural Earth land mask)",
-                "resolution": None,
-                "crs": "EPSG:4326",
-                "status": "ocean"
-            }
+        if not self.tile_available(lat, lon):
+            if not self.is_land(lat, lon):
+                return {
+                    "elevation": 0.0,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "terrain_raster": None,
+                    "terrain_tile": tile,
+                    "dem_source": "Sea level (Natural Earth land mask)",
+                    "resolution": None,
+                    "crs": "EPSG:4326",
+                    "status": "ocean"
+                }
 
-        if tile not in self.available_tiles:
-            path = self.tile_path(tile)
-
-            if not path.is_file():
-                raise FileNotFoundError(
-                    f"Tile DEM {tile} tidak tersedia untuk daratan ({lat}, {lon})."
-                )
+            raise FileNotFoundError(
+                f"Tile DEM {tile} tidak tersedia untuk "
+                f"daratan ({lat}, {lon})."
+            )
 
         tile, dataset = self._find_dataset(lat, lon)
 
@@ -185,7 +183,7 @@ class TerrainService:
 
         if np.ma.is_masked(value):
             raise ValueError(
-                f"Nilai DEM NoData pada daratan ({lat}, {lon})."
+                f"Nilai DEM NoData pada koordinat ({lat}, {lon})."
             )
 
         elevation = float(value)

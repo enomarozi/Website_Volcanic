@@ -215,7 +215,8 @@ BACKEND_MER_METHOD = "degruyter"
 terrain_service = TerrainService()
 
 landcover_service = LandCoverService(
-    data_dir=BASE_DIR / "data" / "landcover" / "ESA_WorldCover_2021"
+    data_dir=BASE_DIR / "data" / "landcover" / "ESA_WorldCover_2021",
+    terrain=terrain_service,
 )
 
 
@@ -517,9 +518,13 @@ def build_result_display(result, config, dataset, info):
         "total_particles": config.total_particles,
         "particle_density": config.particle_density,
         "precipitation": config.precipitation,
-        "precipitation_source": "dataset",
-        "precipitation_source_label": "GFS Surface Accumulated",
-        "precipitation_rate": None,
+        "precipitation_source": config.precipitation_source,
+        "precipitation_source_label": {
+            "dataset": f"{dataset.name} — Surface Accumulated",
+            "manual": "Manual (mm/jam)",
+            "none": "Tanpa Presipitasi"
+        }[config.precipitation_source],
+        "precipitation_rate": config.precipitation_rate,
         "grid_resolution": config.grid_resolution,
         "domain_radius": config.domain_radius,
         "mer_method": config.mer_method,
@@ -754,6 +759,7 @@ async def simulation_meteorology(
     latitude: float = -7.5407,
     longitude: float = 110.4462,
     time_index: int = 0,
+    start_time: str | None = None,
     user: User = Depends(current_user),
     db: Session = Depends(get_db)
 ):
@@ -789,18 +795,23 @@ async def simulation_meteorology(
                 "Dataset Upper-Air tidak memiliki waktu valid."
             )
 
-        if time_index < 0 or time_index >= len(times):
-            raise ValueError(
-                f"Time index di luar rentang dataset. "
-                f"Jumlah waktu tersedia: {len(times)}."
-            )
+        timing = meteorology.resolve_start_time(
+            start_time or None,
+            time_index
+        )
+
+        time_index = timing["lower_index"]
+        start_elapsed = timing["elapsed_seconds"]
 
         grid = dataset_grid_settings(
             meteorology, latitude, longitude
         )
 
         upper_air = meteorology.atmospheric_profile(
-            latitude, longitude, time_index
+            latitude,
+            longitude,
+            time_index,
+            elapsed_seconds=start_elapsed
         )
 
         profile = []
@@ -819,7 +830,7 @@ async def simulation_meteorology(
         upper_air["latitude"] = float(latitude)
         upper_air["longitude"] = float(longitude)
         upper_air["time_index"] = int(time_index)
-        upper_air["time"] = str(times[time_index])
+        upper_air["time"] = timing["start_time"]
         upper_air["level_count"] = len(profile)
 
         surface_profile = None
@@ -839,7 +850,9 @@ async def simulation_meteorology(
                 )
 
             surface_profile = surface.surface_profile(
-                latitude, longitude, time_index
+                latitude,
+                longitude,
+                elapsed_seconds=start_elapsed
             )
 
             surface_info = {
@@ -883,6 +896,11 @@ async def simulation_meteorology(
                 "time_count",
                 info.get("count", len(times))
             ),
+            "start_time": timing["start_time"],
+            "start_elapsed_seconds": start_elapsed,
+            "lower_time_index": timing["lower_index"],
+            "upper_time_index": timing["upper_index"],
+            "time_fraction": timing["fraction"],
             "interval_seconds": info.get("interval_seconds"),
             "interval_hours": info.get("interval_hours"),
             "elapsed_seconds": info.get("elapsed_seconds", []),
@@ -997,7 +1015,10 @@ async def run_simulation(
     eruption_duration: float = Form(...),
     duration: float = Form(...),
     time_index: int = Form(0),
+    start_time: str | None = Form(None),
     total_particles: int = Form(50000),
+    precipitation_source: str = Form("dataset"),
+    precipitation_rate: float | None = Form(None),
     scavenging_a: float = Form(8.4e-5),
     scavenging_b: float = Form(0.79),
     ventilation_rate: float = Form(4000.0),
@@ -1031,10 +1052,18 @@ async def run_simulation(
         )
 
         info = meteorology.time_information()
+        timing = meteorology.resolve_start_time(
+            start_time or None,
+            time_index
+        )
 
-        if not 0 <= time_index < len(info["times"]):
+        time_index = timing["lower_index"]
+        start_elapsed = timing["elapsed_seconds"]
+        start_time = timing["start_time"]
+
+        if start_elapsed + duration * 3600.0 > info["elapsed_seconds"][-1]:
             raise ValueError(
-                "Time index di luar cakupan dataset GFS."
+                "Durasi simulasi melewati cakupan meteorologi."
             )
 
         grid = dataset_grid_settings(
@@ -1053,25 +1082,70 @@ async def run_simulation(
         )
 
         surface_profile = surface.surface_profile(
-            latitude, longitude, time_index
+            latitude,
+            longitude,
+            elapsed_seconds=start_elapsed
         )
 
-        if not surface_profile.get("precipitation_available"):
+        if precipitation_source not in (
+            "dataset", "manual", "none"
+        ):
             raise ValueError(
-                "Presipitasi GFS Surface Accumulated tidak tersedia."
+                "Sumber presipitasi tidak dikenal."
             )
 
-        precipitation = float(
-            surface_profile["precipitation"]
-        )
+        if precipitation_source == "dataset":
+            if precipitation_source not in ("dataset", "manual", "none"):
+                raise ValueError("Sumber presipitasi tidak dikenal.")
 
-        if not math.isfinite(precipitation) or precipitation < 0:
-            raise ValueError(
-                "Nilai presipitasi GFS tidak valid."
-            )
+            if precipitation_source == "dataset":
+                if not surface_profile.get("precipitation_available"):
+                    raise ValueError(
+                        "Presipitasi dataset tidak tersedia."
+                    )
 
-        precipitation_source = "dataset"
-        precipitation_rate = None
+                precipitation = float(
+                    surface_profile["precipitation"]
+                )
+
+                if not math.isfinite(precipitation) or precipitation < 0:
+                    raise ValueError(
+                        "Nilai presipitasi dataset tidak valid."
+                    )
+
+                precipitation_rate = None
+
+            elif precipitation_source == "manual":
+                if (
+                    precipitation_rate is None
+                    or not math.isfinite(precipitation_rate)
+                    or precipitation_rate < 0
+                ):
+                    raise ValueError(
+                        "Laju hujan manual harus >= 0 mm/jam."
+                    )
+
+                precipitation = 0.0
+
+            else:
+                precipitation = 0.0
+                precipitation_rate = 0.0
+
+        elif precipitation_source == "manual":
+            if (
+                precipitation_rate is None
+                or not math.isfinite(precipitation_rate)
+                or precipitation_rate < 0
+            ):
+                raise ValueError(
+                    "Laju hujan manual harus >= 0 mm/jam."
+                )
+
+            precipitation = 0.0
+
+        else:
+            precipitation = 0.0
+            precipitation_rate = None
 
         meteorology.close()
         meteorology = None
@@ -1087,6 +1161,7 @@ async def run_simulation(
             eruption_duration=eruption_duration * 3600.0,
             duration=duration * 3600.0,
             time_index=time_index,
+            start_time=datetime.fromisoformat(start_time),
             vei=BACKEND_VEI,
             total_particles=total_particles,
             particle_density=BACKEND_PARTICLE_DENSITY,
@@ -1126,8 +1201,23 @@ async def run_simulation(
         print("Timestep M6      :", effective_dt)
         print("Particles        :", config.total_particles)
         print("Time index       :", config.time_index)
-        print("Rain source      : GFS DATASET")
-        print("GFS precipitation:", config.precipitation)
+        print("Start time UTC   :", start_time)
+        print("Start elapsed    :", start_elapsed)
+        print("Rain source      :", config.precipitation_source.upper())
+
+        if config.precipitation_source == "dataset":
+            print("Rain dataset     :", dataset.name)
+            print(
+                "Rain rate at vent:",
+                surface_profile.get("precipitation_rate_mm_hour"),
+                "mm/jam"
+            )
+        else:
+            print(
+                "Rain rate        :",
+                config.precipitation_rate,
+                "mm/jam"
+            )
         print("Scavenging A     :", config.scavenging_a)
         print("Scavenging B     :", config.scavenging_b)
         print("Ventilation rate :", config.ventilation_rate)
@@ -1148,6 +1238,7 @@ async def run_simulation(
             duration=config.duration,
             timestep=effective_dt,
             time_index=config.time_index,
+            start_time=start_time,
             precipitation=config.precipitation,
             total_particles=config.total_particles,
             particle_density=config.particle_density,
@@ -1227,9 +1318,7 @@ async def run_simulation(
         result["simulation_id"] = simulation.id
         result["volcano_name"] = volcano or "Unknown Volcano"
         result["vei"] = config.vei
-        result["simulation_time"] = str(
-            info["times"][config.time_index]
-        )
+        result["simulation_time"] = start_time
 
         result["input"] = {
             "volcano": volcano or "Unknown Volcano",
@@ -1245,9 +1334,13 @@ async def run_simulation(
             "timestep": actual_dt,
             "timestep_source": "M6_LAGRANGIAN",
             "precipitation": config.precipitation,
-            "precipitation_source": "dataset",
-            "precipitation_source_label": "GFS Surface Accumulated",
-            "precipitation_rate": None,
+            "precipitation_source": config.precipitation_source,
+            "precipitation_source_label": {
+                "dataset": f"{dataset.name} — Surface Accumulated",
+                "manual": "Manual (mm/jam)",
+                "none": "Tanpa Presipitasi"
+            }[config.precipitation_source],
+            "precipitation_rate": config.precipitation_rate,
             "total_particles": config.total_particles,
             "particle_density": config.particle_density,
             "grid_resolution": config.grid_resolution,
@@ -1260,9 +1353,9 @@ async def run_simulation(
             ),
             "mer_method": config.mer_method,
             "time_index": config.time_index,
-            "meteorology_time": str(
-                info["times"][config.time_index]
-            ),
+            "start_time": start_time,
+            "start_elapsed_seconds": start_elapsed,
+            "meteorology_time": start_time,
             "meteorology_dataset_id": dataset.id,
             "meteorology_dataset": dataset.name
         }
@@ -1589,6 +1682,7 @@ async def dispersion(
             "eruption_height",
             "eruption_duration",
             "time_index",
+            "start_time",
             "total_particles"
         )
         if params.get(key) not in (None, "")

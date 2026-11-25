@@ -10,8 +10,10 @@
 {% set altitude = q.get('altitude', '') %}
 {% set eruption_height = q.get('eruption_height', '18000') %}
 {% set eruption_duration = q.get('eruption_duration', '2') %}
-{% set time_index = q.get('time_index', '0') %}
+{% set start_time = q.get('start_time', '') %}
 {% set total_particles = q.get('total_particles', '50000') %}
+{% set time_index = q.get('time_index', '0') %}
+{% set start_time = q.get('start_time', '') %}
 
 <div class="py-4 border-bottom mb-4">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -40,6 +42,7 @@
     <input type="hidden" name="eruption_height" value="{{ eruption_height }}">
     <input type="hidden" name="eruption_duration" value="{{ eruption_duration }}">
     <input type="hidden" name="time_index" value="{{ time_index }}">
+    <input type="hidden" name="start_time" value="{{ start_time }}">
 
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white py-3">
@@ -155,10 +158,82 @@
             </div>
         </div>
     </div>
-
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white py-3">
-            <div class="fw-semibold">03 · Ringkasan Konfigurasi</div>
+            <div class="fw-semibold">03 · Konfigurasi Presipitasi</div>
+            <small class="text-muted">
+                Intensitas curah hujan untuk M7 — Deposisi Basah.
+            </small>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="precipitation_source">
+                        Sumber Presipitasi
+                    </label>
+
+                    <select class="form-select"
+                            id="precipitation_source"
+                            name="precipitation_source" required>
+                        <option value="manual" selected>
+                            Manual — Kerangka Formulasi 2
+                        </option>
+                        <option value="dataset">
+                            Dataset Meteorologi (GFS/GDAS)
+                        </option>
+                        <option value="none">
+                            Tanpa Presipitasi
+                        </option>
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label" for="precipitation_rate">
+                        Intensitas Curah Hujan (mm/jam)
+                    </label>
+
+                    <input type="number"
+                           class="form-control"
+                           id="precipitation_rate"
+                           name="precipitation_rate"
+                           min="0" step="any"
+                           value="2.5" required>
+
+                    <div class="form-text" id="precipitationHelp">
+                        Nilai referensi Kerangka Formulasi 2:
+                        2,5 mm/jam.
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-3 mb-0">
+                <div class="fw-semibold mb-2">
+                    Parameter Default Deposisi Basah
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        Scavenging A:
+                        <strong>8,4 × 10<sup>-5</sup></strong>
+                    </div>
+                    <div class="col-md-6">
+                        Scavenging B:
+                        <strong>0,79</strong>
+                    </div>
+                </div>
+
+                <div class="small mt-2">
+                    Koefisien mengikuti konfigurasi backend.
+                    Mode manual menggunakan intensitas hujan konstan.
+                    Data GPM IMERG belum diambil secara otomatis.
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <div class="fw-semibold">04 · Ringkasan Konfigurasi</div>
         </div>
 
         <div class="card-body">
@@ -203,11 +278,16 @@
                     <small class="text-muted">Metode Timestep</small>
                     <div class="fw-semibold">M6 — Lagrangian</div>
                 </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Waktu Mulai Erupsi (UTC)</div>
+                    <div class="fw-semibold">{{ start_time }}</div>
+                </div>
             </div>
 
             <div class="alert alert-info mt-3 mb-0">
                 Parameter atmosfer, MER, turbulensi, dan deposisi
-                diproses oleh backend berdasarkan dataset meteorologi terpilih.
+                diproses oleh backend berdasarkan dataset meteorologi
+                dan sumber presipitasi terpilih.
             </div>
         </div>
     </div>
@@ -256,8 +336,46 @@ document.addEventListener("DOMContentLoaded", () => {
     const latitude = form.elements["latitude"].value;
     const longitude = form.elements["longitude"].value;
     const timeIndex = form.elements["time_index"].value;
+    const startTime = form.elements["start_time"].value;
 
     let submitting = false;
+        const rainSource = form.elements["precipitation_source"];
+    const rainRate = form.elements["precipitation_rate"];
+    const rainHelp = document.getElementById("precipitationHelp");
+
+    let manualRainRate = "2.5";
+
+    function updatePrecipitation() {
+        const source = rainSource.value;
+
+        rainRate.disabled = source !== "manual";
+        rainRate.required = source === "manual";
+
+        if (source === "manual") {
+            rainRate.value = manualRainRate;
+            rainHelp.textContent =
+                "Nilai referensi Kerangka Formulasi 2: 2,5 mm/jam.";
+        } else if (source === "dataset") {
+            rainRate.value = "";
+            rainRate.placeholder = "Mengikuti dataset";
+            rainHelp.textContent =
+                "Intensitas mengikuti posisi dan waktu partikel.";
+        } else {
+            rainRate.value = "0";
+            rainHelp.textContent =
+                "Tidak ada presipitasi: R = 0 mm/jam.";
+        }
+    }
+
+    rainSource.addEventListener("change", updatePrecipitation);
+
+    rainRate.addEventListener("input", () => {
+        if (rainSource.value === "manual") {
+            manualRainRate = rainRate.value;
+        }
+    });
+
+    updatePrecipitation();
 
     function formatNumber(value, digits = 2) {
         const number = Number(value);
@@ -286,7 +404,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const params = new URLSearchParams({
                 latitude: latitude,
                 longitude: longitude,
-                time_index: timeIndex
+                time_index: timeIndex,
+                start_time: startTime
             });
 
             const response = await fetch(
@@ -332,7 +451,8 @@ document.addEventListener("DOMContentLoaded", () => {
             "meteorology_dataset_id", "name", "volcano",
             "latitude", "longitude", "altitude",
             "eruption_height", "eruption_duration",
-            "time_index", "duration", "total_particles"
+            "time_index", "start_time",
+            "duration", "total_particles"
         ];
 
         for (const field of requiredFields) {
@@ -366,7 +486,27 @@ document.addEventListener("DOMContentLoaded", () => {
             showError("Time index meteorologi tidak valid.");
             return;
         }
+        if (!["dataset", "manual", "none"].includes(rainSource.value)) {
+            event.preventDefault();
+            showError("Sumber presipitasi tidak valid.");
+            return;
+        }
 
+        if (rainSource.value === "manual") {
+            const rain = Number(rainRate.value);
+
+            if (
+                rainRate.value.trim() === "" ||
+                !Number.isFinite(rain) ||
+                rain < 0
+            ) {
+                event.preventDefault();
+                showError(
+                    "Intensitas hujan harus >= 0 mm/jam."
+                );
+                return;
+            }
+        }
         submitting = true;
         button.disabled = true;
         button.innerHTML =

@@ -7,6 +7,8 @@ from netCDF4 import Dataset, num2date
 
 
 class MeteorologyService:
+    GAMMA = 1.41
+    REFERENCE_PRESSURE = 1000.0
     def __init__(self, file_path: str):
         self.file_path = Path(file_path)
         self.dataset = None
@@ -330,6 +332,63 @@ class MeteorologyService:
 
         return int(np.argmin(np.abs(times - target)))
 
+    def resolve_start_time(self, start_time=None, time_index=0):
+        from datetime import datetime, timezone
+
+        info = self.time_information()
+        times = info["times"]
+        elapsed = info["elapsed_seconds"]
+
+        def utc(value):
+            if not isinstance(value, datetime):
+                value = datetime.fromisoformat(
+                    str(value).replace("Z", "+00:00")
+                )
+
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+
+            return value.astimezone(timezone.utc)
+
+        if start_time is None:
+            index = int(time_index)
+
+            if not 0 <= index < len(times):
+                raise ValueError("Invalid meteorological time index.")
+
+            target = utc(times[index])
+        else:
+            target = utc(start_time)
+
+        offset = float(
+            (target - utc(times[0])).total_seconds()
+        )
+
+        if not elapsed[0] <= offset <= elapsed[-1]:
+            raise ValueError(
+                "Simulation start time is outside meteorological coverage."
+            )
+
+        upper = int(np.searchsorted(elapsed, offset, side="left"))
+
+        if elapsed[upper] == offset:
+            lower = upper
+            fraction = 0.0
+        else:
+            lower = upper - 1
+            fraction = (
+                (offset - elapsed[lower])
+                / (elapsed[upper] - elapsed[lower])
+            )
+
+        return {
+            "start_time": target.isoformat(),
+            "elapsed_seconds": offset,
+            "lower_index": lower,
+            "upper_index": upper,
+            "fraction": float(fraction)
+        }
+
     @staticmethod
     def _axis_spacing(values):
         values = np.asarray(values, dtype=float)
@@ -649,10 +708,62 @@ class MeteorologyService:
             "u": interpolate("u"),
             "v": interpolate("v"),
             "temperature": interpolate("temperature"),
+            "geopotential": interpolate("geopotential"),
             "altitude": interpolate("altitude"),
             "rh": interpolate("rh")
         }
 
+    def bilinear_profile_at_elapsed(
+        self, latitude, longitude, elapsed_seconds
+    ):
+        times = self.time_information()["elapsed_seconds"]
+        target = float(elapsed_seconds)
+
+        if not math.isfinite(target):
+            raise ValueError("Invalid meteorological elapsed time.")
+
+        if not times[0] <= target <= times[-1]:
+            raise ValueError(
+                "Time is outside meteorological coverage."
+            )
+
+        upper = int(np.searchsorted(times, target, side="left"))
+
+        if times[upper] == target:
+            return self.bilinear_profile(
+                latitude, longitude, upper
+            )
+
+        lower = upper - 1
+
+        fraction = (
+            (target - times[lower])
+            / (times[upper] - times[lower])
+        )
+
+        a = self.bilinear_profile(
+            latitude, longitude, lower
+        )
+
+        b = self.bilinear_profile(
+            latitude, longitude, upper
+        )
+
+        result = {"pressure": a["pressure"]}
+
+        for key in (
+            "u", "v", "temperature",
+            "geopotential", "altitude", "rh"
+        ):
+            if a[key] is None or b[key] is None:
+                result[key] = None
+            else:
+                result[key] = (
+                    a[key] + (b[key] - a[key]) * fraction
+                )
+
+        return result
+    
     def nearest_grid(self, latitude, longitude):
         data = self.load()
 
@@ -697,54 +808,43 @@ class MeteorologyService:
         }
 
     def atmospheric_profile(
-        self, latitude, longitude, time_index=0
+        self, latitude, longitude, time_index=0,
+        elapsed_seconds=None
     ):
-        data = self.load()
-        time_index = int(time_index)
-
-        if not 0 <= time_index < len(data["times"]):
-            raise ValueError(
-                "Invalid meteorological time index."
+        if elapsed_seconds is None:
+            interpolated = self.bilinear_profile(
+                latitude, longitude, time_index
+            )
+        else:
+            interpolated = self.bilinear_profile_at_elapsed(
+                latitude, longitude, elapsed_seconds
             )
 
-        grid = self.nearest_grid(latitude, longitude)
-
-        i = grid["latitude_index"]
-        j = grid["longitude_index"]
-
-        pressure = data["pressure_level"]
-        u = data["u"][time_index, :, i, j]
-        v = data["v"][time_index, :, i, j]
-
-        temperature = (
-            data["temperature"][time_index, :, i, j]
-            if data["temperature"] is not None
-            else None
-        )
-
-        geopotential = (
-            data["geopotential"][time_index, :, i, j]
-            if data["geopotential"] is not None
-            else None
-        )
-
-        altitude = data["altitude"][
-            time_index, :, i, j
-        ]
-        rh = (
-            data["rh"][time_index, :, i, j]
-            if data["rh"] is not None
-            else None
-        )
+        pressure = interpolated["pressure"]
+        u = interpolated["u"]
+        v = interpolated["v"]
+        temperature = interpolated["temperature"]
+        geopotential = interpolated["geopotential"]
+        altitude = interpolated["altitude"]
+        rh = interpolated["rh"]
 
         potential_temperature = None
 
         if temperature is not None:
+            if (
+                np.any(~np.isfinite(pressure))
+                or np.any(pressure <= 0)
+                or np.any(~np.isfinite(temperature))
+                or np.any(temperature <= 0)
+            ):
+                raise ValueError(
+                    "Invalid atmospheric temperature or pressure."
+                )
+
             potential_temperature = (
                 temperature
-                * (1000.0 / np.maximum(
-                    pressure, 0.001
-                )) ** (287.05 / 1004.67)
+                * (self.REFERENCE_PRESSURE / pressure)
+                ** ((self.GAMMA - 1.0) / self.GAMMA)
             )
 
         profile = []
@@ -979,47 +1079,63 @@ class MeteorologyService:
         wind_u = float(np.interp(target, z, u))
         wind_v = float(np.interp(target, z, v))
 
-        brunt_vaisala = 0.011
-
-        if temperature is not None:
-            theta = (
-                temperature
-                * (1000.0 / np.maximum(
-                    pressure, 0.001
-                )) ** (287.05 / 1004.67)
+        if temperature is None:
+            raise ValueError(
+                "Temperature profile is required "
+                "for Brunt-Vaisala calculation."
             )
 
-            valid_theta = (
-                np.isfinite(theta)
-                & (theta > 0)
+        valid_theta = (
+            np.isfinite(temperature)
+            & (temperature > 0)
+            & np.isfinite(pressure)
+            & (pressure > 0)
+        )
+
+        if np.count_nonzero(valid_theta) < 2:
+            raise ValueError(
+                "At least two valid thermodynamic levels "
+                "are required for Brunt-Vaisala calculation."
             )
 
-            if np.count_nonzero(valid_theta) >= 2:
-                tz = z[valid_theta]
-                tt = theta[valid_theta]
+        tz = z[valid_theta]
 
-                theta_target = float(
-                    np.interp(target, tz, tt)
-                )
+        tt = (
+            temperature[valid_theta]
+            * (
+                self.REFERENCE_PRESSURE
+                / pressure[valid_theta]
+            )
+            ** ((self.GAMMA - 1.0) / self.GAMMA)
+        )
 
-                gradient = np.gradient(tt, tz)
+        if target < tz[0] or target > tz[-1]:
+            raise ValueError(
+                "Altitude is outside valid thermodynamic coverage."
+            )
 
-                gradient_target = float(
-                    np.interp(
-                        target, tz, gradient
-                    )
-                )
+        theta_target = float(
+            np.interp(target, tz, tt)
+        )
 
-                if theta_target > 0:
-                    n2 = (
-                        9.81 / theta_target
-                        * gradient_target
-                    )
+        gradient = np.gradient(tt, tz)
 
-                    brunt_vaisala = max(
-                        math.sqrt(max(n2, 0.0)),
-                        0.011
-                    )
+        gradient_target = float(
+            np.interp(target, tz, gradient)
+        )
+
+        n2 = 9.81 / theta_target * gradient_target
+
+        if not math.isfinite(n2):
+            raise ValueError(
+                "Invalid Brunt-Vaisala frequency squared."
+            )
+
+        brunt_vaisala = (
+            math.sqrt(n2)
+            if n2 >= 0
+            else None
+        )
 
         return {
             "u": wind_u,
@@ -1027,9 +1143,8 @@ class MeteorologyService:
             "wind_speed": math.hypot(
                 wind_u, wind_v
             ),
-            "brunt_vaisala": float(
-                brunt_vaisala
-            ),
+            "brunt_vaisala_squared": float(n2),
+            "brunt_vaisala": brunt_vaisala,
             "altitude": target,
             "time_index": int(time_index)
         }
@@ -1105,19 +1220,22 @@ class MeteorologyService:
             + (b["v"] - a["v"]) * fraction
         )
 
-        n = (
-            a["brunt_vaisala"]
+        n2 = (
+            a["brunt_vaisala_squared"]
             + (
-                b["brunt_vaisala"]
-                - a["brunt_vaisala"]
+                b["brunt_vaisala_squared"]
+                - a["brunt_vaisala_squared"]
             ) * fraction
         )
+
+        n = math.sqrt(n2) if n2 >= 0 else None
 
         return {
             "u": float(u),
             "v": float(v),
             "wind_speed": math.hypot(u, v),
-            "brunt_vaisala": float(n),
+            "brunt_vaisala_squared": float(n2),
+            "brunt_vaisala": n,
             "altitude": float(altitude),
             "elapsed_seconds": target
         }

@@ -154,8 +154,10 @@
 
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-white py-3">
-        <div class="fw-semibold">03 · Waktu Meteorologi</div>
-        <small class="text-muted">Pilih waktu valid dataset dalam UTC.</small>
+        <div class="fw-semibold">03 · Waktu Meteorologi & Erupsi</div>
+        <small class="text-muted">
+            Tentukan waktu awal erupsi berdasarkan cakupan dataset dalam UTC.
+        </small>
     </div>
     <div class="card-body">
         <div class="row g-3">
@@ -172,6 +174,28 @@
             <div class="col-md-3">
                 <label class="form-label">Radius Domain</label>
                 <input class="form-control" id="domain_radius" readonly value="—">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="start_time">
+                    Waktu Mulai Erupsi (UTC)
+                </label>
+                <input type="datetime-local"
+                       class="form-control"
+                       id="start_time"
+                       step="1"
+                       disabled
+                       required>
+                <div class="form-text">
+                    Waktu dapat berada di antara dua waktu valid dataset.
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Interpolasi Temporal</label>
+                <input class="form-control"
+                       id="time_interpolation"
+                       value="—"
+                       readonly>
             </div>
         </div>
     </div>
@@ -364,6 +388,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const lon = $("longitude").value;
     const altitude = $("altitude").value;
     const timeSelect = $("time_index");
+    const startTimeInput = $("start_time");
+    let resolvedStartTime = "";
     const nextButton = $("nextButton");
 
     let version = 0;
@@ -406,7 +432,9 @@ document.addEventListener("DOMContentLoaded", () => {
             datasetReady &&
             surfaceReady &&
             terrainReady &&
-            timeSelect.value !== ""
+            timeSelect.value !== "" &&
+            startTimeInput.value !== "" &&
+            resolvedStartTime !== ""
         );
     }
 
@@ -414,6 +442,8 @@ document.addEventListener("DOMContentLoaded", () => {
         datasetReady = false;
         surfaceReady = false;
         terrainReady = false;
+        resolvedStartTime = "";
+        setValue("time_interpolation", null);
 
         [
             "grid_resolution", "domain_radius",
@@ -576,12 +606,14 @@ document.addEventListener("DOMContentLoaded", () => {
         updateNext();
     }
 
-    async function loadDataset(id, index = 0, reloadTimes = true) {
+    async function loadDataset( id, index = 0, reloadTimes = true, requestedStartTime = "" ) {
         const currentVersion = ++version;
         resetData();
         clearError();
 
         timeSelect.disabled = true;
+        startTimeInput.disabled = true;
+
         if (reloadTimes) {
             timeSelect.innerHTML = '<option value="">Memuat waktu...</option>';
         }
@@ -596,6 +628,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 longitude: lon,
                 time_index: String(index)
             });
+
+            if (requestedStartTime) {
+                params.set("start_time", requestedStartTime);
+            }
 
             const response = await fetch(
                 `/simulations/meteorology/${encodeURIComponent(id)}?${params}`
@@ -623,9 +659,30 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error("Dataset tidak memiliki waktu meteorologi.");
             }
 
-            timeSelect.value = String(index);
+            timeSelect.value = String(data.lower_time_index);
             timeSelect.disabled = false;
 
+            resolvedStartTime = data.start_time;
+
+            startTimeInput.min = String(data.times[0])
+                .replace(" ", "T").slice(0, 19);
+
+            startTimeInput.max = String(data.times[data.times.length - 1])
+                .replace(" ", "T").slice(0, 19);
+
+            startTimeInput.value = String(data.start_time)
+                .replace(" ", "T").slice(0, 19);
+
+            startTimeInput.disabled = false;
+
+            const fraction = Number(data.time_fraction);
+
+            setValue(
+                "time_interpolation",
+                data.lower_time_index === data.upper_time_index
+                    ? "Waktu valid dataset"
+                    : `${data.lower_time_index} → ${data.upper_time_index} | Bobot: ${fraction.toFixed(6)}`
+            );
             setValue("grid_resolution",
                 Number(data.grid_resolution / 1000).toFixed(2), " km");
             setValue("domain_radius",
@@ -642,9 +699,10 @@ document.addEventListener("DOMContentLoaded", () => {
             datasetReady = false;
             surfaceReady = false;
             terrainReady = false;
-            timeSelect.disabled = true;
+            timeSelect.disabled = reloadTimes;
+            startTimeInput.disabled = reloadTimes;
+            resolvedStartTime = "";
             showError(error.message);
-            updateNext();
         }
     }
 
@@ -667,19 +725,43 @@ document.addEventListener("DOMContentLoaded", () => {
             loadDataset(selected.value, Number(timeSelect.value), false);
         }
     });
+    startTimeInput.addEventListener("change", () => {
+        const selected = selectedDataset();
+
+        resolvedStartTime = "";
+        datasetReady = false;
+        updateNext();
+
+        if (!selected || !startTimeInput.value) {
+            return;
+        }
+
+        if (!startTimeInput.checkValidity()) {
+            showError("Waktu erupsi berada di luar cakupan dataset.");
+            return;
+        }
+
+        loadDataset(
+            selected.value,
+            Number(timeSelect.value || 0),
+            false,
+            startTimeInput.value + "Z"
+        );
+    });
 
     nextButton.addEventListener("click", () => {
         const selected = selectedDataset();
         if (!selected || nextButton.disabled) return;
 
-        const params = new URLSearchParams({
-            dataset_id: selected.value,
-            volcano: volcano,
-            latitude: lat,
-            longitude: lon,
-            altitude: altitude,
-            time_index: timeSelect.value
-        });
+            const params = new URLSearchParams({
+                dataset_id: selected.value,
+                volcano: volcano,
+                latitude: lat,
+                longitude: lon,
+                altitude: altitude,
+                time_index: timeSelect.value,
+                start_time: resolvedStartTime
+            });
 
         window.location.href = "/source-config?" + params.toString();
     });

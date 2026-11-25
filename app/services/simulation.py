@@ -46,7 +46,21 @@ class SimulationService:
                 "Dataset meteorologi tidak memiliki waktu yang valid."
             )
 
-        time_index = self._resolve_time_index(config, info)
+        timing = self.meteorology.resolve_start_time(
+            config.start_time,
+            config.time_index
+        )
+
+        time_index = timing["lower_index"]
+        start_elapsed = timing["elapsed_seconds"]
+
+        if (
+            start_elapsed + float(config.duration)
+            > float(info["elapsed_seconds"][-1])
+        ):
+            raise ValueError(
+                "Durasi simulasi melewati cakupan meteorologi."
+            )
 
         if self.terrain is None:
             raise RuntimeError("TerrainService wajib tersedia.")
@@ -87,12 +101,20 @@ class SimulationService:
         altitude_correction = (
             release_altitude - source_altitude
         )
-        column_top = release_altitude + eruption_height
+        column_top = source_altitude + eruption_height
 
-        profile = self.meteorology.bilinear_profile(
+        release_height = column_top - release_altitude
+
+        if release_height <= 0:
+            raise ValueError(
+                "Elevasi pelepasan partikel mencapai atau "
+                "melebihi puncak kolom erupsi."
+            )
+
+        profile = self.meteorology.bilinear_profile_at_elapsed(
             latitude,
             longitude,
-            time_index
+            start_elapsed
         )
 
         if not isinstance(profile, dict) or "altitude" not in profile:
@@ -113,7 +135,7 @@ class SimulationService:
         gfs_min = float(np.min(z))
         gfs_max = float(np.max(z))
         maximum_eruption_height = (
-            gfs_max - release_altitude
+            gfs_max - source_altitude
         )
 
         print("\n========== VERTICAL VALIDATION ==========")
@@ -125,6 +147,8 @@ class SimulationService:
         print(f"Release altitude : {release_altitude:.2f} m AMSL")
         print(f"Eruption height  : {eruption_height:.2f} m AGL")
         print(f"Column top       : {column_top:.2f} m AMSL")
+        print(f"Release height   : {release_height:.2f} m")
+        print(f"Altitude correction: {altitude_correction:.2f} m")
         print(f"GFS minimum      : {gfs_min:.2f} m AMSL")
         print(f"GFS maximum      : {gfs_max:.2f} m AMSL")
         print(f"Maximum height   : {maximum_eruption_height:.2f} m AGL")
@@ -158,7 +182,8 @@ class SimulationService:
         atmospheric = self.meteorology.atmospheric_profile(
             latitude,
             longitude,
-            time_index
+            time_index,
+            elapsed_seconds=start_elapsed
         )
 
         eruption = self.eruption.calculate(
@@ -177,7 +202,7 @@ class SimulationService:
             latitude,
             longitude,
             release_altitude,
-            eruption_height=eruption_height,
+            eruption_height=release_height,
             eruption_duration=config.eruption_duration
         )
 
@@ -264,12 +289,23 @@ class SimulationService:
         )
         print(f"Delta t       : {effective_dt:.2f} s")
         print("=================================\n")
-
+        print("\n========== TIME VALIDATION ==========")
+        print("Start time UTC   :", timing["start_time"])
+        print("Lower time index :", timing["lower_index"])
+        print("Upper time index :", timing["upper_index"])
+        print("Lower valid time :", info["times"][timing["lower_index"]])
+        print("Upper valid time :", info["times"][timing["upper_index"]])
+        print("Time fraction    :", timing["fraction"])
+        print("Start elapsed    :", start_elapsed)
+        print("End elapsed      :", start_elapsed + duration)
+        print("Dataset coverage :", info["elapsed_seconds"][-1])
+        print("=====================================\n")
         disp = self.dispersion.simulate(
             particles,
             duration,
             effective_dt,
-            time_index
+            time_index,
+            start_elapsed_seconds=start_elapsed
         )
 
         from collections import Counter, defaultdict
@@ -1121,6 +1157,9 @@ class SimulationService:
         serialized_config.pop("requested_timestep", None)
 
         serialized_config.update({
+            "start_time": timing["start_time"],
+            "time_index": time_index,
+            "start_elapsed_seconds": start_elapsed,
             "grid_size": grid_size,
             "vertical_resolution": vertical_resolution,
             "timestep": effective_dt,
