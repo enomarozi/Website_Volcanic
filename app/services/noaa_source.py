@@ -222,31 +222,64 @@ def _aws_select(entry: dict, kind: str) -> bool:
 
 
 def _idx_interval(entry: dict):
-    match = re.search(r"(?:^|:)(\d+)-(\d+)\s+hour\s+(acc|ave)\s+fcst", entry["description"], re.I)
+    match = re.search(
+        r"(?:^|:)(\d+)-(\d+)\s+(hours?|days?)\s+(acc|ave)\s+fcst",
+        entry["description"],
+        re.I
+    )
+
     if not match:
         return None
-    return int(match.group(1)), int(match.group(2)), match.group(3).lower()
 
+    start = int(match.group(1))
+    end = int(match.group(2))
+    unit = match.group(3).lower()
+    kind = match.group(4).lower()
+
+    if unit.startswith("day"):
+        start *= 24
+        end *= 24
+
+    return start, end, kind
 
 def _select_accum_messages(entries: list[dict], hour: int) -> list[dict]:
     chosen = []
     for variable, expected in (("APCP", "acc"), ("SHTFL", "ave")):
         candidates = []
+
         for entry in entries:
             if entry["variable"] != variable:
                 continue
+
             interval = _idx_interval(entry)
-            if interval is None or interval[1] != hour or interval[2] != expected:
+
+            if interval is None:
                 continue
+
+            start, end, kind = interval
+
+            if end != hour or kind != expected:
+                continue
+
+            if start < 0 or start >= end or start % 3 != 0:
+                continue
+
             candidates.append((entry, interval))
+
         if not candidates:
             if variable == "SHTFL":
-                raise ValueError(f"SHTFL dengan interval valid tidak tersedia pada f{hour:03d}")
+                raise ValueError(
+                    f"SHTFL dengan interval valid tidak tersedia pada f{hour:03d}"
+                )
             continue
-        if variable == "APCP":
-            candidates.sort(key=lambda item: (item[1][0] != 0, item[1][0], item[0]["offset"]))
-        else:
-            candidates.sort(key=lambda item: (item[1][1] - item[1][0], -item[1][0], item[0]["offset"]))
+
+        candidates.sort(
+            key=lambda item: (
+                item[1][1] - item[1][0],
+                -item[1][0],
+                item[0]["offset"]
+            )
+        )
         chosen.append(candidates[0][0])
     return sorted(chosen, key=lambda entry: entry["offset"])
 
@@ -1115,8 +1148,15 @@ def _cache_key(
     latitude: float | None = None,
     longitude: float | None = None,
 ) -> str:
+
+    version = (
+        f"{CACHE_VERSION}-accum-shortest-v1"
+        if kind == "accum"
+        else CACHE_VERSION
+    )
+
     identity = (
-        f"{CACHE_VERSION}|{source}|{url}|{kind}|"
+        f"{version}|{source}|{url}|{kind}|"
         f"{latitude}|{longitude}"
     )
 
@@ -1450,6 +1490,17 @@ def _normalize_three_hour_accum(files: list[Path]) -> None:
                         raise ValueError(f"Tidak bisa membentuk interval {left}-{right} {variable}; data {hour}-{hour+3} tidak ada")
                     amount = amount - previous[variable][hour]
                 if variable == "tp":
+                    print(
+                        f"[APCP DEBUG] f{right:03d} "
+                        f"source={start}-{end} "
+                        f"target={left}-{right} "
+                        f"source_min={np.nanmin(source) * 1000:.8f} mm "
+                        f"source_max={np.nanmax(source) * 1000:.8f} mm "
+                        f"result_min={np.nanmin(amount) * 1000:.8f} mm "
+                        f"result_max={np.nanmax(amount) * 1000:.8f} mm "
+                        f"negative_cells={np.count_nonzero(amount < -1e-7)}",
+                        flush=True
+                    )
                     if np.any(amount < -1e-7):
                         raise ValueError(f"Akumulasi APCP negatif pada {left}-{right}; periksa produk NOAA")
                     amount = np.maximum(amount, 0)

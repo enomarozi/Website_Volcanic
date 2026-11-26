@@ -24,7 +24,7 @@ class SimulationConfig(BaseModel):
     precipitation: float = Field(0.0, ge=0.0, allow_inf_nan=False)
     mer_method: str = Field("degruyter")
 
-    precipitation_source: Literal["dataset", "manual", "none"] = "dataset"
+    precipitation_source: Literal["dataset", "manual", "imerg", "none"] = "dataset"
     precipitation_rate: float | None = Field(None, ge=0.0, allow_inf_nan=False)
     scavenging_a: float = Field(8.4e-5, ge=0.0, allow_inf_nan=False)
     scavenging_b: float = Field(0.79, ge=0.0, allow_inf_nan=False)

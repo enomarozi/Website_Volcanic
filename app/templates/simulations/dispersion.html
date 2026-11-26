@@ -182,6 +182,9 @@
                         <option value="dataset">
                             Dataset Meteorologi (GFS/GDAS)
                         </option>
+                        <option value="imerg">
+                            GPM IMERG — NASA Earthdata
+                        </option>
                         <option value="none">
                             Tanpa Presipitasi
                         </option>
@@ -226,7 +229,8 @@
                 <div class="small mt-2">
                     Koefisien mengikuti konfigurasi backend.
                     Mode manual menggunakan intensitas hujan konstan.
-                    Data GPM IMERG belum diambil secara otomatis.
+                    Mode GPM IMERG mengambil data presipitasi regional
+                    secara otomatis berdasarkan domain dan waktu simulasi.
                 </div>
             </div>
         </div>
@@ -360,6 +364,11 @@ document.addEventListener("DOMContentLoaded", () => {
             rainRate.placeholder = "Mengikuti dataset";
             rainHelp.textContent =
                 "Intensitas mengikuti posisi dan waktu partikel.";
+        } else if (source === "imerg") {
+            rainRate.value = "";
+            rainRate.placeholder = "Mengikuti GPM IMERG";
+            rainHelp.textContent =
+                "NASA GPM IMERG Late Run, resolusi 0.1°, interval 30 menit.";
         } else {
             rainRate.value = "0";
             rainHelp.textContent =
@@ -486,7 +495,7 @@ document.addEventListener("DOMContentLoaded", () => {
             showError("Time index meteorologi tidak valid.");
             return;
         }
-        if (!["dataset", "manual", "none"].includes(rainSource.value)) {
+        if (!["dataset", "manual", "imerg", "none"].includes(rainSource.value)) {
             event.preventDefault();
             showError("Sumber presipitasi tidak valid.");
             return;

@@ -12,3 +12,6 @@ cfgrib
 eccodes
 pytest
 rasterio
+earthaccess
+h5netcdf
+h5py

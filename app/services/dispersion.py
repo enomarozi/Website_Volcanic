@@ -22,6 +22,7 @@ class DispersionService:
         self.surface_meteorology = surface_meteorology
         self.landcover = landcover
         self.terrain = terrain
+        self.imerg_precipitation = None
         self.dem_crossing = (
             DEMCrossingService(
                 particle_simulation=self.particle_simulation,
@@ -133,7 +134,7 @@ class DispersionService:
         return result
 
     
-    def _rain_and_humidity(self, conditions,latitude,longitude,altitude,elapsed_seconds):
+    def _rain_and_humidity( self, conditions, latitude, longitude, altitude, elapsed_seconds ):
         source = getattr(
             self,
             "precipitation_source",
@@ -159,12 +160,30 @@ class DispersionService:
 
             if rain is None:
                 raise ValueError(
-                    "Laju hujan GFS dalam mm/jam tidak tersedia."
+                    "Laju hujan GFS/GDAS tidak tersedia."
                 )
 
             rain = self._number(
                 rain,
-                "Laju hujan GFS mm/jam",
+                "Laju hujan GFS/GDAS mm/jam",
+                minimum=0.0
+            )
+
+        elif source == "imerg":
+            if self.imerg_precipitation is None:
+                raise RuntimeError(
+                    "Dataset GPM IMERG belum diinisialisasi."
+                )
+
+            rain = self.imerg_precipitation.rain_at_elapsed(
+                latitude=latitude,
+                longitude=longitude,
+                elapsed_seconds=elapsed_seconds
+            )
+
+            rain = self._number(
+                rain,
+                "Laju hujan IMERG mm/jam",
                 minimum=0.0
             )
 
@@ -609,6 +628,7 @@ class DispersionService:
                                         "upper_air" if rh is not None else None
                                     ),
                                     rain_rate_mm_hour=rain,
+                                    precipitation_source=self.precipitation_source,
                                     scavenging_type=(
                                         self.deposition.scavenging_type(rh)
                                         if rain > 0 else None

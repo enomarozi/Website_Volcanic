@@ -92,16 +92,8 @@ class EruptionService:
         # The framework averages wind speed over all available GFS levels, not only levels below H.
         wind_speeds=[math.hypot(x["u"],x["v"]) for x in levels]
         mean_wind=sum(wind_speeds)/len(wind_speeds)
-        # Direction uses mean horizontal components through the eruption column (z <= H).
-        column_top = float(vent_altitude) + h
-
-        direction_levels = [
-            x for x in levels
-            if float(vent_altitude) <= x["z"] <= column_top
-        ]
-        if not direction_levels: direction_levels=levels
-        mean_u=sum(x["u"] for x in direction_levels)/len(direction_levels)
-        mean_v=sum(x["v"] for x in direction_levels)/len(direction_levels)
+        mean_u=sum(x["u"] for x in levels)/len(levels)
+        mean_v=sum(x["v"] for x in levels)/len(levels)
         bearing=math.degrees(math.atan2(mean_u,mean_v))%360.0
         theta_levels = [
             x for x in levels

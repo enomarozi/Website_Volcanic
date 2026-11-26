@@ -37,6 +37,8 @@ from app.services.mass_balance import MassBalanceService
 from app.services.landcover import LandCoverService
 from app.services.terrain_service import TerrainService
 from app.services.noaa_source import acquire_noaa_dataset, SOURCE_CONFIG
+from app.services.imerg_source import IMERGSource
+from app.services.precipitation import IMERGPrecipitationService
 
 
 router = APIRouter()
@@ -207,7 +209,7 @@ def format_significant(value, digits=4):
 templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["sig"] = format_significant
 BASE_DIR = Path(__file__).resolve().parents[2]
-
+IMERG_CACHE_DIR = BASE_DIR / "data" / "meteorology" / ".imerg_cache"
 BACKEND_VEI = 3
 BACKEND_PARTICLE_DENSITY = 2500.0
 BACKEND_MER_METHOD = "degruyter"
@@ -522,6 +524,7 @@ def build_result_display(result, config, dataset, info):
         "precipitation_source_label": {
             "dataset": f"{dataset.name} — Surface Accumulated",
             "manual": "Manual (mm/jam)",
+            "imerg": "NASA GPM IMERG Late Run V07",
             "none": "Tanpa Presipitasi"
         }[config.precipitation_source],
         "precipitation_rate": config.precipitation_rate,
@@ -566,6 +569,34 @@ def build_result_display(result, config, dataset, info):
     result["mean_wind_speed"] = eruption.get(
         "mean_wind_speed"
     )
+
+    result["mean_u_column"] = eruption.get(
+        "mean_u_column"
+    )
+
+    result["mean_v_column"] = eruption.get(
+        "mean_v_column"
+    )
+
+    bearing = eruption.get("wind_bearing_degrees")
+
+    directions = [
+        "N", "NNE", "NE", "ENE",
+        "E", "ESE", "SE", "SSE",
+        "S", "SSW", "SW", "WSW",
+        "W", "WNW", "NW", "NNW"
+    ]
+
+    if bearing is not None:
+        bearing = float(bearing) % 360.0
+
+        result["azimuth"] = bearing
+        result["direction"] = directions[
+            int((bearing + 11.25) // 22.5) % 16
+        ]
+    else:
+        result["azimuth"] = None
+        result["direction"] = "-"
 
     result["geojson"] = geojson
     result["concentration"] = concentration
@@ -1088,48 +1119,28 @@ async def run_simulation(
         )
 
         if precipitation_source not in (
-            "dataset", "manual", "none"
+            "dataset", "manual", "imerg", "none"
         ):
             raise ValueError(
                 "Sumber presipitasi tidak dikenal."
             )
 
         if precipitation_source == "dataset":
-            if precipitation_source not in ("dataset", "manual", "none"):
-                raise ValueError("Sumber presipitasi tidak dikenal.")
-
-            if precipitation_source == "dataset":
-                if not surface_profile.get("precipitation_available"):
-                    raise ValueError(
-                        "Presipitasi dataset tidak tersedia."
-                    )
-
-                precipitation = float(
-                    surface_profile["precipitation"]
+            if not surface_profile.get("precipitation_available"):
+                raise ValueError(
+                    "Presipitasi dataset tidak tersedia."
                 )
 
-                if not math.isfinite(precipitation) or precipitation < 0:
-                    raise ValueError(
-                        "Nilai presipitasi dataset tidak valid."
-                    )
+            precipitation = float(
+                surface_profile["precipitation"]
+            )
 
-                precipitation_rate = None
+            if not math.isfinite(precipitation) or precipitation < 0:
+                raise ValueError(
+                    "Nilai presipitasi dataset tidak valid."
+                )
 
-            elif precipitation_source == "manual":
-                if (
-                    precipitation_rate is None
-                    or not math.isfinite(precipitation_rate)
-                    or precipitation_rate < 0
-                ):
-                    raise ValueError(
-                        "Laju hujan manual harus >= 0 mm/jam."
-                    )
-
-                precipitation = 0.0
-
-            else:
-                precipitation = 0.0
-                precipitation_rate = 0.0
+            precipitation_rate = None
 
         elif precipitation_source == "manual":
             if (
@@ -1143,11 +1154,13 @@ async def run_simulation(
 
             precipitation = 0.0
 
-        else:
+        elif precipitation_source == "imerg":
             precipitation = 0.0
             precipitation_rate = None
 
-        meteorology.close()
+        else:
+            precipitation = 0.0
+            precipitation_rate = None
         meteorology = None
 
         surface.close()
@@ -1212,6 +1225,12 @@ async def run_simulation(
                 surface_profile.get("precipitation_rate_mm_hour"),
                 "mm/jam"
             )
+
+        elif config.precipitation_source == "imerg":
+            print("Rain dataset     : NASA GPM IMERG Late Run V07")
+            print("Rain resolution  : 0.1 degree")
+            print("Rain interval    : 1800 seconds")
+
         else:
             print(
                 "Rain rate        :",
@@ -1259,6 +1278,51 @@ async def run_simulation(
         )
 
         info = service.meteorology.time_information()
+
+        if config.precipitation_source == "imerg":
+            bbox = (
+                grid["longitude_min"],
+                grid["latitude_min"],
+                grid["longitude_max"],
+                grid["latitude_max"]
+            )
+
+            imerg_source = IMERGSource(
+                cache_dir=IMERG_CACHE_DIR
+            )
+
+            try:
+                records = imerg_source.fetch(
+                    start_time=start_time,
+                    duration=config.duration,
+                    bbox=bbox
+                )
+            finally:
+                imerg_source.close()
+
+            imerg_precipitation = IMERGPrecipitationService(
+                records=records,
+                start_time=start_time,
+                start_elapsed_seconds=start_elapsed,
+                duration=config.duration
+            )
+
+            imerg_precipitation.diagnostic()
+
+            service.dispersion.imerg_precipitation = (
+                imerg_precipitation
+            )
+
+            print(
+                "IMERG rain at vent:",
+                imerg_precipitation.rain_at_elapsed(
+                    latitude=config.latitude,
+                    longitude=config.longitude,
+                    elapsed_seconds=start_elapsed
+                ),
+                "mm/jam",
+                flush=True
+            )
 
         result = service.run(config)
 
@@ -1338,6 +1402,7 @@ async def run_simulation(
             "precipitation_source_label": {
                 "dataset": f"{dataset.name} — Surface Accumulated",
                 "manual": "Manual (mm/jam)",
+                "imerg": "NASA GPM IMERG Late Run V07",
                 "none": "Tanpa Presipitasi"
             }[config.precipitation_source],
             "precipitation_rate": config.precipitation_rate,
